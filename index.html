@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12262B">
+<title>Expense tracker</title>
+<style>
+  :root{
+    --ink:#12262B; --ink-soft:#1C3940; --paper:#F3F5F1; --card:#FFFFFF;
+    --line:#DDE3DD; --text:#14211F; --muted:#66756F;
+    --in:#1E7A5A; --in-tint:#E4F1EA; --out:#AB3E56; --out-tint:#F7E6EA;
+    --focus:#3E8E82; --warn:#8A6410;
+    --radius:14px; --tap:48px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--text);
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;padding-bottom:48px}
+  .wrap{max-width:520px;margin:0 auto}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  .hide{display:none !important}
+
+  .ledger{background:var(--ink);color:#EDF2EE;padding:26px 20px 20px;padding-top:calc(26px + env(safe-area-inset-top))}
+  .ledger h1{margin:0;font-size:.8125rem;font-weight:500;color:#8FA8A2}
+  .balance{margin:2px 0 16px;font-size:2.75rem;font-weight:600;letter-spacing:-.025em;line-height:1.05}
+  .split{display:flex;border-top:1px solid rgba(237,242,238,.16);padding-top:12px;gap:20px}
+  .split div{flex:1}
+  .split span{display:block;font-size:.75rem;color:#8FA8A2}
+  .split b{font-size:1.0625rem;font-weight:600}
+  .split .v-in{color:#6FD0A8}
+  .split .v-out{color:#F2939F}
+
+  main{padding:16px 16px 0;display:flex;flex-direction:column;gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .card > h2{margin:0 0 12px;font-size:.9375rem;font-weight:600}
+
+  .seg{display:flex;gap:6px;background:#EEF1EC;border-radius:11px;padding:4px;margin-bottom:14px}
+  .seg button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:500;color:var(--muted);cursor:pointer}
+  .seg button[aria-pressed="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(18,38,43,.12)}
+  .seg button.is-in[aria-pressed="true"]{color:var(--in)}
+  .seg button.is-out[aria-pressed="true"]{color:var(--out)}
+
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:.8125rem;color:var(--muted);margin-bottom:5px}
+  input,select{width:100%;min-height:var(--tap);font:inherit;font-size:16px;color:var(--text);
+    background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0 12px;appearance:none;-webkit-appearance:none}
+  select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 18px) 21px,calc(100% - 13px) 21px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:36px}
+  input:focus,select:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+  .row2{display:flex;gap:10px}
+  .row2 .field{flex:1;margin-bottom:12px}
+  #amount{font-variant-numeric:tabular-nums;font-weight:600}
+  body[data-type="Income"] #amount{color:var(--in)}
+  body[data-type="Expenses"] #amount{color:var(--out)}
+  .err{color:var(--out);font-size:.8125rem;margin:0 0 10px;display:none}
+  .err.show{display:block}
+
+  .btn{width:100%;min-height:var(--tap);border:0;border-radius:10px;background:var(--ink);color:#EDF2EE;font:inherit;font-weight:600;cursor:pointer}
+  .btn:active{background:var(--ink-soft)}
+  .btn-ghost{background:var(--card);color:var(--text);border:1px solid var(--line);font-weight:500}
+
+  .status{display:flex;align-items:flex-start;gap:9px;margin:0 0 12px;font-size:.875rem;color:var(--muted)}
+  .dot{flex:0 0 9px;width:9px;height:9px;border-radius:50%;background:var(--muted);margin-top:6px}
+  .status[data-tone="ok"] .dot{background:var(--in)}
+  .status[data-tone="warn"] .dot{background:var(--warn)}
+  .status[data-tone="warn"]{color:var(--warn)}
+  .status b{color:var(--text);font-weight:600}
+  .status[data-tone="warn"] b{color:var(--warn)}
+  .file-row{display:flex;gap:10px}
+  .file-row > *{flex:1}
+  .filelabel{display:flex;align-items:center;justify-content:center;min-height:var(--tap);border:1px solid var(--line);
+    border-radius:10px;background:var(--card);font-weight:500;cursor:pointer;text-align:center;padding:0 8px}
+  .filelabel input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .linkout{display:block;width:100%;margin-top:10px;background:none;border:0;padding:8px 0;font:inherit;font-size:.875rem;color:var(--focus);text-decoration:underline;cursor:pointer}
+  .hint{margin:10px 0 0;font-size:.8125rem;color:var(--muted)}
+  .hint code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.75rem;background:#EEF1EC;padding:2px 5px;border-radius:5px;word-break:break-all}
+  details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  summary{cursor:pointer;font-size:.875rem;color:var(--muted);padding:4px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"＋ ";color:var(--focus)}
+  details[open] summary::before{content:"− "}
+  details .file-row{margin-top:10px}
+
+  .picklist{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .picklist button{display:block;width:100%;text-align:left;background:var(--card);border:0;border-bottom:1px solid var(--line);
+    padding:12px;font:inherit;cursor:pointer;min-height:var(--tap)}
+  .picklist button:last-child{border-bottom:0}
+  .picklist button:active{background:#EEF1EC}
+  .picklist small{display:block;color:var(--muted);font-size:.75rem}
+
+  .filters{display:flex;gap:10px}
+  .filters .field{flex:1;margin:0}
+
+  .daygroup{margin-top:18px}
+  .dayhead{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 6px;border-bottom:1px solid var(--line)}
+  .dayhead span{font-size:.8125rem;color:var(--muted)}
+  .entry{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  .tag{width:8px;height:38px;border-radius:4px;flex:0 0 8px}
+  .entry-main{flex:1;min-width:0}
+  .entry-main p{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .entry-main .desc{font-weight:500}
+  .entry-main .cat{font-size:.8125rem;color:var(--muted)}
+  .amt{font-weight:600;white-space:nowrap}
+  .amt.in{color:var(--in)}
+  .amt.out{color:var(--out)}
+  .del{flex:0 0 34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:1.1rem;line-height:1;cursor:pointer}
+  .del:active{background:var(--out-tint);color:var(--out)}
+  .empty{text-align:center;color:var(--muted);padding:34px 16px;border:1px dashed var(--line);border-radius:var(--radius);margin-top:4px}
+  .empty p{margin:0 0 4px}
+
+  #toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,90px);background:var(--ink);color:#EDF2EE;
+    padding:11px 18px;border-radius:22px;font-size:.875rem;max-width:88vw;text-align:center;z-index:9;transition:transform .22s ease}
+  #toast.show{transform:translate(-50%,0)}
+  @media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body data-type="Expenses">
+<div class="wrap">
+
+  <header class="ledger">
+    <h1>Balance</h1>
+    <p class="balance num" id="balance">₹0.00</p>
+    <div class="split">
+      <div><span>Income</span><b class="num v-in" id="totalIn">₹0.00</b></div>
+      <div><span>Expenses</span><b class="num v-out" id="totalOut">₹0.00</b></div>
+    </div>
+  </header>
+
+  <main>
+
+    <section class="card">
+      <h2>Add an entry</h2>
+
+      <div class="seg" role="group" aria-label="Entry type">
+        <button type="button" class="is-out" id="btnExpense" aria-pressed="true">Expense</button>
+        <button type="button" class="is-in" id="btnIncome" aria-pressed="false">Income</button>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="date">Date</label>
+          <input type="date" id="date">
+        </div>
+        <div class="field">
+          <label for="amount">Amount</label>
+          <input type="number" id="amount" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category">
+          <option>Household</option>
+          <option>Food and Groceries</option>
+          <option>Travel</option>
+          <option>Investment</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="description">Description</label>
+        <input type="text" id="description" placeholder="What was it for?" maxlength="120">
+      </div>
+
+      <p class="err" id="formError"></p>
+      <button class="btn" id="btnAdd">Add entry</button>
+    </section>
+
+    <section class="card">
+      <h2>Where this is saved</h2>
+      <p class="status" id="status" data-tone="idle"><span class="dot"></span><span id="statusText">Starting up</span></p>
+
+      <!-- no client id configured yet -->
+      <div id="driveSetup" class="hide">
+        <div class="field">
+          <label for="clientIdInput">Google OAuth client ID</label>
+          <input type="text" id="clientIdInput" placeholder="…apps.googleusercontent.com" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn btn-ghost" id="btnSaveClientId">Save client ID</button>
+        <p class="hint">Add this page as an authorized JavaScript origin in Google Cloud: <code id="originHint"></code></p>
+      </div>
+
+      <!-- client id present -->
+      <div id="driveControls" class="hide">
+        <div class="file-row">
+          <button class="btn btn-ghost" id="btnDriveNew">New Drive file</button>
+          <button class="btn btn-ghost" id="btnDriveOpen">Open Drive file</button>
+        </div>
+        <div id="pickList" class="picklist hide"></div>
+        <button class="linkout hide" id="btnRetrySync">Retry saving to Drive</button>
+        <button class="linkout hide" id="btnDriveOff">Stop using Drive</button>
+      </div>
+
+      <details id="moreOptions">
+        <summary>Other ways to save</summary>
+
+        <div id="fsaControls" class="hide">
+          <div class="file-row">
+            <button class="btn btn-ghost" id="btnOpenFile">Open a file on this device</button>
+            <button class="btn btn-ghost" id="btnNewFile">New file on this device</button>
+          </div>
+          <button class="linkout hide" id="btnReconnect">Reconnect that file</button>
+        </div>
+
+        <div class="file-row" id="basicControls">
+          <label class="filelabel" for="csvFile">Load a CSV
+            <input type="file" id="csvFile" accept=".csv,text/csv">
+          </label>
+          <button class="btn btn-ghost" id="btnExport">Download a copy</button>
+        </div>
+
+        <button class="linkout" id="btnResetClientId">Change the client ID</button>
+        <p class="hint">Columns: <code>date,category,description,type,amount</code></p>
+      </details>
+    </section>
+
+    <section class="filters">
+      <div class="field">
+        <label for="fMonth">Month</label>
+        <select id="fMonth"><option value="all">All months</option></select>
+      </div>
+      <div class="field">
+        <label for="fCategory">Category</label>
+        <select id="fCategory">
+          <option value="all">All categories</option>
+          <option>Household</option>
+          <option>Food and Groceries</option>
+          <option>Travel</option>
+          <option>Investment</option>
+        </select>
+      </div>
+    </section>
+
+    <section id="entries"></section>
+  </main>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================
+     CONFIG — paste your OAuth client ID here to bake it in.
+     Leave blank to type it into the page once instead.
+     ========================================================= */
+  var CLIENT_ID = "";
+
+  var SCOPE = "https://www.googleapis.com/auth/drive.file";
+  var CATEGORIES = ["Household", "Food and Groceries", "Travel", "Investment"];
+  var K_CSV = "expenseTracker.csv";
+  var K_CID = "expenseTracker.clientId";
+  var K_FILE = "expenseTracker.driveFile";
+  var K_MODE = "expenseTracker.mode";
+
+  var entries = [];
+  var currentType = "Expenses";
+  var mode = "browser";              // browser | file | drive
+  var fileHandle = null;             // local File System Access handle
+  var saveTimer = null, seq = 0, dirty = false;
+
+  var drive = { clientId: "", token: null, expires: 0, client: null, waiting: null, fileId: "", fileName: "" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var FSA = (function () {
+    try { return ("showSaveFilePicker" in window) && window.self === window.top; } catch (e) { return false; }
+  })();
+
+  /* ---------- small helpers ---------- */
+  function money(n) {
+    return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function pad(x) { return String(x).padStart(2, "0"); }
+  function todayISO() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function monthKey(iso) { return iso.slice(0, 7); }
+  function monthName(k) { var p = k.split("-"); return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" }); }
+  function dayLabel(iso) { var p = iso.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 2800);
+  }
+  function setStatus(html, tone) { $("statusText").innerHTML = html; $("status").dataset.tone = tone || "idle"; }
+  function sortedAll() { return entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); }); }
+  function ls(k, v) {
+    try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); return true; }
+    catch (e) { return v === undefined ? null : false; }
+  }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  /* ---------- CSV ---------- */
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, "");
+    var rows = [], row = [], field = "", inQ = false, i = 0;
+    while (i < text.length) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i += 2; continue; } inQ = false; i++; continue; }
+        field += c; i++; continue;
+      }
+      if (c === '"') { inQ = true; i++; continue; }
+      if (c === ",") { row.push(field); field = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      field += c; i++;
+    }
+    row.push(field); rows.push(row);
+    return rows.filter(function (r) { return r.some(function (v) { return v.trim() !== ""; }); });
+  }
+  function csvCell(v) { v = v == null ? "" : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function buildCSV(list) {
+    var out = ["date,category,description,type,amount"];
+    list.forEach(function (e) { out.push([e.date, e.category, e.description, e.type, e.amount.toFixed(2)].map(csvCell).join(",")); });
+    return out.join("\r\n") + "\r\n";
+  }
+  function normDate(v) {
+    v = (v || "").trim();
+    var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + "-" + pad(m[2]) + "-" + pad(m[3]);
+    m = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
+    return null;
+  }
+  function normType(v) { v = (v || "").trim().toLowerCase(); return (v === "income" || v === "in" || v === "credit") ? "Income" : "Expenses"; }
+  function normCategory(v) {
+    v = (v || "").trim();
+    for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].toLowerCase() === v.toLowerCase()) return CATEGORIES[i];
+    return v || "Household";
+  }
+  function normAmount(v) { var n = parseFloat(String(v).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? null : Math.abs(n); }
+
+  function importCSV(text, replace, quiet) {
+    var rows = parseCSV(text);
+    if (!rows.length) { if (!quiet) toast("That file is empty."); if (replace) { entries = []; render(); } return 0; }
+    var header = rows[0].map(function (h) { return h.trim().toLowerCase(); });
+    var idx = { date: header.indexOf("date"), category: header.indexOf("category"), description: header.indexOf("description"), type: header.indexOf("type"), amount: header.indexOf("amount") };
+    var start = 1;
+    if (idx.date < 0 || idx.amount < 0) { idx = { date: 0, category: 1, description: 2, type: 3, amount: 4 }; start = 0; }
+
+    var parsed = [], skipped = 0;
+    for (var r = start; r < rows.length; r++) {
+      var row = rows[r];
+      var date = normDate(row[idx.date]);
+      var amount = normAmount(row[idx.amount]);
+      if (!date || amount === null) { skipped++; continue; }
+      parsed.push({
+        id: "e" + (++seq) + "_" + r, date: date,
+        category: normCategory(row[idx.category]),
+        description: (row[idx.description] || "").trim(),
+        type: normType(row[idx.type]), amount: amount
+      });
+    }
+    entries = replace ? parsed : entries.concat(parsed);
+    render();
+    if (!quiet) toast(parsed.length + " row" + (parsed.length === 1 ? "" : "s") + " loaded" + (skipped ? ", " + skipped + " skipped" : ""));
+    return parsed.length;
+  }
+
+  /* =========================================================
+     Google Drive
+     ========================================================= */
+  function gisReady() {
+    return new Promise(function (res, rej) {
+      var tries = 0;
+      (function poll() {
+        if (window.google && google.accounts && google.accounts.oauth2) return res();
+        if (++tries > 60) return rej(new Error("Google sign-in script didn't load"));
+        setTimeout(poll, 250);
+      })();
+    });
+  }
+
+  function initDrive() {
+    return gisReady().then(function () {
+      drive.client = google.accounts.oauth2.initTokenClient({
+        client_id: drive.clientId,
+        scope: SCOPE,
+        callback: function (resp) {
+          var w = drive.waiting; drive.waiting = null;
+          if (resp && resp.access_token) {
+            drive.token = resp.access_token;
+            drive.expires = Date.now() + ((resp.expires_in || 3600) * 1000);
+            if (w) w.res(drive.token);
+          } else if (w) { w.rej(new Error((resp && resp.error) || "Sign-in cancelled")); }
+        },
+        error_callback: function (err) {
+          var w = drive.waiting; drive.waiting = null;
+          if (w) w.rej(new Error((err && err.type) || "Sign-in failed"));
+        }
+      });
+    });
+  }
+
+  function token() {
+    if (drive.token && Date.now() < drive.expires - 60000) return Promise.resolve(drive.token);
+    if (!drive.client) return Promise.reject(new Error("Drive not set up"));
+    if (drive.waiting) return Promise.reject(new Error("Sign-in already in progress"));
+    return new Promise(function (res, rej) {
+      drive.waiting = { res: res, rej: rej };
+      try { drive.client.requestAccessToken({ prompt: "" }); }
+      catch (e) { drive.waiting = null; rej(e); }
+    });
+  }
+
+  function api(url, opts, retried) {
+    opts = opts || {};
+    return token().then(function (t) {
+      var headers = {};
+      for (var k in (opts.headers || {})) headers[k] = opts.headers[k];
+      headers.Authorization = "Bearer " + t;
+      return fetch(url, { method: opts.method || "GET", headers: headers, body: opts.body });
+    }).then(function (r) {
+      if ((r.status === 401 || r.status === 403) && !retried) { drive.token = null; return api(url, opts, true); }
+      if (!r.ok) return r.text().then(function (t) { throw new Error("Drive " + r.status + ": " + t.slice(0, 120)); });
+      return r;
+    });
+  }
+
+  function driveCreate(name, csv) {
+    var b = "----expensetracker" + Date.now();
+    var body = "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+      JSON.stringify({ name: name, mimeType: "text/csv" }) +
+      "\r\n--" + b + "\r\nContent-Type: text/csv\r\n\r\n" + csv + "\r\n--" + b + "--";
+    return api("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name", {
+      method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: body
+    }).then(function (r) { return r.json(); });
+  }
+  function driveUpdate(id, csv) {
+    return api("https://www.googleapis.com/upload/drive/v3/files/" + encodeURIComponent(id) + "?uploadType=media&fields=id,name", {
+      method: "PATCH", headers: { "Content-Type": "text/csv" }, body: csv
+    }).then(function (r) { return r.json(); });
+  }
+  function driveRead(id) {
+    return api("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) + "?alt=media")
+      .then(function (r) { return r.text(); });
+  }
+  function driveList() {
+    return api("https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent("trashed=false") +
+      "&orderBy=modifiedTime desc&pageSize=25&fields=files(id,name,modifiedTime)")
+      .then(function (r) { return r.json(); });
+  }
+
+  function useDriveFile(id, name) {
+    drive.fileId = id; drive.fileName = name;
+    mode = "drive";
+    ls(K_FILE, JSON.stringify({ id: id, name: name }));
+    ls(K_MODE, "drive");
+    $("btnDriveOff").classList.remove("hide");
+    $("btnDriveNew").textContent = "New Drive file";
+    $("btnDriveOpen").textContent = "Switch file";
+  }
+
+  function pullFromDrive(quiet) {
+    return driveRead(drive.fileId).then(function (text) {
+      var n = importCSV(text, true, true);
+      ls(K_CSV, buildCSV(sortedAll()));
+      dirty = false;
+      setStatus("Saving to <b>" + esc(drive.fileName) + "</b> in Drive — " + n + " row" + (n === 1 ? "" : "s"), "ok");
+      if (!quiet) toast("Loaded " + n + " row" + (n === 1 ? "" : "s") + " from Drive");
+    });
+  }
+
+  function pushToDrive(csv) {
+    setStatus("Saving to Drive…", "idle");
+    return driveUpdate(drive.fileId, csv).then(function () {
+      dirty = false;
+      $("btnRetrySync").classList.add("hide");
+      setStatus("Saved to <b>" + esc(drive.fileName) + "</b> in Drive", "ok");
+    }).catch(function (e) {
+      dirty = true;
+      $("btnRetrySync").classList.remove("hide");
+      setStatus("Kept on this device — Drive didn't accept the last save. " + esc(e.message), "warn");
+    });
+  }
+
+  /* =========================================================
+     Saving
+     ========================================================= */
+  function persist() {
+    var csv = buildCSV(sortedAll());
+    var cached = ls(K_CSV, csv);
+
+    if (mode === "drive" && drive.fileId) {
+      dirty = true;
+      setStatus("Saving to Drive…", "idle");
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { pushToDrive(csv); }, 900);
+      return;
+    }
+    if (mode === "file" && fileHandle) {
+      setStatus("Saving to <b>" + esc(fileHandle.name) + "</b>…", "idle");
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { writeFile(csv); }, 300);
+      return;
+    }
+    setStatus(cached
+      ? "Kept in this browser only. Connect a Drive file to keep it safe."
+      : "Nothing is being saved. Download a copy before you close this.", cached ? "warn" : "warn");
+  }
+
+  function writeFile(csv) {
+    if (!fileHandle) return;
+    var h = fileHandle;
+    h.queryPermission({ mode: "readwrite" }).then(function (p) {
+      if (p !== "granted") { needsReconnect(); return; }
+      return h.createWritable().then(function (w) { return w.write(csv).then(function () { return w.close(); }); })
+        .then(function () { setStatus("Saved to <b>" + esc(h.name) + "</b> on this device", "ok"); });
+    }).catch(function () {
+      setStatus("Couldn't write to <b>" + esc(h.name) + "</b>. Reconnect it.", "warn");
+      $("btnReconnect").classList.remove("hide");
+      $("moreOptions").open = true;
+    });
+  }
+  function needsReconnect() {
+    setStatus("Reconnect <b>" + esc(fileHandle.name) + "</b> to keep saving to it.", "warn");
+    $("btnReconnect").classList.remove("hide");
+    $("moreOptions").open = true;
+  }
+
+  /* ---------- remembered local file handle ---------- */
+  function idbOpen() {
+    return new Promise(function (res) {
+      try {
+        var rq = indexedDB.open("expenseTracker", 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore("kv"); };
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { res(null); };
+        rq.onblocked = function () { res(null); };
+      } catch (e) { res(null); }
+    });
+  }
+  function idbPut(k, v) {
+    return idbOpen().then(function (db) {
+      if (!db) return;
+      return new Promise(function (res) {
+        try { var tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; }
+        catch (e) { res(); }
+      });
+    });
+  }
+  function idbGet(k) {
+    return idbOpen().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try { var tx = db.transaction("kv", "readonly"); var rq = tx.objectStore("kv").get(k); rq.onsuccess = function () { res(rq.result || null); }; rq.onerror = function () { res(null); }; }
+        catch (e) { res(null); }
+      });
+    });
+  }
+
+  /* =========================================================
+     Rendering
+     ========================================================= */
+  function visible() {
+    var m = $("fMonth").value, c = $("fCategory").value;
+    return entries.filter(function (e) { return (m === "all" || monthKey(e.date) === m) && (c === "all" || e.category === c); });
+  }
+  function refreshMonths() {
+    var sel = $("fMonth"), keep = sel.value || "all", keys = {};
+    entries.forEach(function (e) { keys[monthKey(e.date)] = true; });
+    var list = Object.keys(keys).sort().reverse();
+    sel.innerHTML = '<option value="all">All months</option>';
+    list.forEach(function (k) { var o = document.createElement("option"); o.value = k; o.textContent = monthName(k); sel.appendChild(o); });
+    sel.value = (keep === "all" || list.indexOf(keep) > -1) ? keep : "all";
+  }
+  function render() {
+    refreshMonths();
+    var list = visible().slice().sort(function (a, b) { return a.date === b.date ? 0 : (a.date < b.date ? 1 : -1); });
+    var inc = 0, exp = 0;
+    list.forEach(function (e) { if (e.type === "Income") inc += e.amount; else exp += e.amount; });
+    $("totalIn").textContent = money(inc);
+    $("totalOut").textContent = money(exp);
+    var bal = inc - exp;
+    $("balance").textContent = (bal < 0 ? "-" : "") + money(bal);
+
+    var box = $("entries"); box.innerHTML = "";
+    if (!list.length) {
+      box.innerHTML = '<div class="empty"><p>Nothing here yet.</p><p>Add an entry above, or open your CSV.</p></div>';
+      return;
+    }
+    var currentDay = null, group = null;
+    list.forEach(function (e) {
+      if (e.date !== currentDay) {
+        currentDay = e.date;
+        group = document.createElement("div"); group.className = "daygroup";
+        var dayTotal = list.reduce(function (s, x) { return x.date !== e.date ? s : s + (x.type === "Income" ? x.amount : -x.amount); }, 0);
+        var head = document.createElement("div"); head.className = "dayhead";
+        head.innerHTML = '<span>' + dayLabel(e.date) + '</span><span class="num">' + (dayTotal < 0 ? "-" : "+") + money(dayTotal) + '</span>';
+        group.appendChild(head); box.appendChild(group);
+      }
+      var isIn = e.type === "Income";
+      var row = document.createElement("div"); row.className = "entry";
+      row.innerHTML =
+        '<span class="tag" style="background:' + (isIn ? "var(--in-tint)" : "var(--out-tint)") + '"></span>' +
+        '<div class="entry-main"><p class="desc"></p><p class="cat"></p></div>' +
+        '<span class="amt num ' + (isIn ? "in" : "out") + '">' + (isIn ? "+" : "−") + money(e.amount) + '</span>' +
+        '<button class="del" type="button" aria-label="Remove entry">×</button>';
+      row.querySelector(".desc").textContent = e.description || e.category;
+      row.querySelector(".cat").textContent = e.description ? e.category : e.type;
+      row.querySelector(".del").addEventListener("click", function () {
+        entries = entries.filter(function (x) { return x.id !== e.id; });
+        render(); persist(); toast("Entry removed");
+      });
+      group.appendChild(row);
+    });
+  }
+
+  function downloadCSV() {
+    var blob = new Blob([buildCSV(sortedAll())], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "expenses-" + todayISO() + ".csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast("CSV downloaded");
+  }
+
+  /* =========================================================
+     Events
+     ========================================================= */
+  function setType(t) {
+    currentType = t; document.body.dataset.type = t;
+    $("btnIncome").setAttribute("aria-pressed", String(t === "Income"));
+    $("btnExpense").setAttribute("aria-pressed", String(t === "Expenses"));
+  }
+  $("btnIncome").addEventListener("click", function () { setType("Income"); });
+  $("btnExpense").addEventListener("click", function () { setType("Expenses"); });
+
+  $("btnAdd").addEventListener("click", function () {
+    var err = $("formError");
+    var date = $("date").value, amount = parseFloat($("amount").value);
+    if (!date) { err.textContent = "Pick a date."; err.classList.add("show"); return; }
+    if (!(amount > 0)) { err.textContent = "Enter an amount greater than zero."; err.classList.add("show"); return; }
+    err.classList.remove("show");
+    entries.push({
+      id: "e" + (++seq) + "_" + Date.now(), date: date, category: $("category").value,
+      description: $("description").value.trim(), type: currentType, amount: Math.abs(amount)
+    });
+    $("amount").value = ""; $("description").value = "";
+    render(); persist();
+    toast(currentType === "Income" ? "Income added" : "Expense added");
+  });
+
+  /* --- Drive buttons --- */
+  $("btnDriveNew").addEventListener("click", function () {
+    var name = prompt("Name for the file in Drive", drive.fileName || "expenses.csv");
+    if (!name) return;
+    if (!/\.csv$/i.test(name)) name += ".csv";
+    setStatus("Creating the file in Drive…", "idle");
+    driveCreate(name, buildCSV(sortedAll())).then(function (f) {
+      useDriveFile(f.id, f.name);
+      setStatus("Saved to <b>" + esc(f.name) + "</b> in Drive", "ok");
+      toast("Now saving to Drive");
+    }).catch(function (e) { setStatus(esc(e.message), "warn"); toast("Couldn't create the file."); });
+  });
+
+  $("btnDriveOpen").addEventListener("click", function () {
+    var box = $("pickList");
+    setStatus("Looking for files this app can open…", "idle");
+    driveList().then(function (d) {
+      var files = (d.files || []).filter(function (f) { return /\.csv$/i.test(f.name); });
+      box.innerHTML = "";
+      if (!files.length) {
+        box.innerHTML = '<button type="button" disabled>Nothing to open yet. Create one with “New Drive file”.</button>';
+      } else {
+        files.forEach(function (f) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.innerHTML = esc(f.name) + "<small>edited " + new Date(f.modifiedTime).toLocaleString("en-IN") + "</small>";
+          b.addEventListener("click", function () {
+            box.classList.add("hide");
+            useDriveFile(f.id, f.name);
+            pullFromDrive().catch(function (e) { setStatus(esc(e.message), "warn"); });
+          });
+          box.appendChild(b);
+        });
+      }
+      box.classList.remove("hide");
+      setStatus("Pick the file to use.", "idle");
+    }).catch(function (e) { setStatus(esc(e.message), "warn"); toast("Couldn't reach Drive."); });
+  });
+
+  $("btnRetrySync").addEventListener("click", function () { pushToDrive(buildCSV(sortedAll())); });
+
+  $("btnDriveOff").addEventListener("click", function () {
+    drive.fileId = ""; drive.fileName = ""; mode = "browser";
+    lsDel(K_FILE); lsDel(K_MODE);
+    $("btnDriveOff").classList.add("hide");
+    $("btnRetrySync").classList.add("hide");
+    persist(); toast("Drive disconnected");
+  });
+
+  $("btnSaveClientId").addEventListener("click", function () {
+    var v = $("clientIdInput").value.trim();
+    if (!v) { toast("Paste the client ID first."); return; }
+    ls(K_CID, v); drive.clientId = v;
+    $("driveSetup").classList.add("hide");
+    $("driveControls").classList.remove("hide");
+    setStatus("Connecting to Google…", "idle");
+    initDrive().then(function () { setStatus("Ready. Create or open a Drive file.", "idle"); })
+      .catch(function (e) { setStatus(esc(e.message), "warn"); });
+  });
+
+  $("btnResetClientId").addEventListener("click", function () {
+    lsDel(K_CID); lsDel(K_FILE); lsDel(K_MODE);
+    location.reload();
+  });
+
+  /* --- local file buttons --- */
+  $("btnOpenFile").addEventListener("click", function () {
+    window.showOpenFilePicker({ multiple: false, types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
+      .then(function (res) {
+        fileHandle = res[0]; mode = "file"; ls(K_MODE, "file"); idbPut("csvHandle", fileHandle);
+        $("btnReconnect").classList.add("hide");
+        return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
+          var n = importCSV(t, true, true); ls(K_CSV, buildCSV(sortedAll()));
+          setStatus("Using <b>" + esc(fileHandle.name) + "</b> on this device — " + n + " rows", "ok");
+          toast("Loaded " + n + " rows");
+        });
+      }).catch(function (e) { if (e && e.name === "AbortError") return; toast("Couldn't open that file."); });
+  });
+
+  $("btnNewFile").addEventListener("click", function () {
+    window.showSaveFilePicker({ suggestedName: "expenses.csv", types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
+      .then(function (h) {
+        fileHandle = h; mode = "file"; ls(K_MODE, "file"); idbPut("csvHandle", h);
+        writeFile(buildCSV(sortedAll())); toast("Now saving to " + h.name);
+      }).catch(function (e) { if (e && e.name === "AbortError") return; toast("Couldn't create that file."); });
+  });
+
+  $("btnReconnect").addEventListener("click", function () {
+    if (!fileHandle) return;
+    fileHandle.requestPermission({ mode: "readwrite" }).then(function (p) {
+      if (p !== "granted") { toast("Permission not given."); return; }
+      $("btnReconnect").classList.add("hide");
+      return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
+        importCSV(t, true, true); persist();
+      });
+    }).catch(function () { toast("Couldn't reconnect the file."); });
+  });
+
+  $("csvFile").addEventListener("change", function (ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () { importCSV(String(reader.result), true); persist(); };
+    reader.onerror = function () { toast("Couldn't read that file."); };
+    reader.readAsText(file); ev.target.value = "";
+  });
+
+  $("btnExport").addEventListener("click", downloadCSV);
+  $("fMonth").addEventListener("change", render);
+  $("fCategory").addEventListener("change", render);
+
+  window.addEventListener("online", function () {
+    if (mode === "drive" && dirty && drive.fileId) pushToDrive(buildCSV(sortedAll()));
+  });
+  window.addEventListener("beforeunload", function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+
+  /* =========================================================
+     Start
+     ========================================================= */
+  $("date").value = todayISO();
+  $("originHint").textContent = location.origin;
+  if (FSA) $("fsaControls").classList.remove("hide");
+
+  var cached = ls(K_CSV);
+  if (cached) importCSV(cached, true, true);
+  render();
+
+  drive.clientId = CLIENT_ID || ls(K_CID) || "";
+  var savedFile = null;
+  try { savedFile = JSON.parse(ls(K_FILE) || "null"); } catch (e) { savedFile = null; }
+  var savedMode = ls(K_MODE) || "browser";
+
+  if (drive.clientId) {
+    $("driveControls").classList.remove("hide");
+    if (savedFile && savedFile.id) {
+      drive.fileId = savedFile.id; drive.fileName = savedFile.name;
+      $("btnDriveOff").classList.remove("hide");
+      $("btnDriveOpen").textContent = "Switch file";
+    }
+    setStatus("Connecting to Google…", "idle");
+    initDrive().then(function () {
+      if (savedMode === "drive" && drive.fileId) {
+        mode = "drive";
+        return pullFromDrive(true).catch(function (e) {
+          setStatus("Showing the copy on this device. Tap to sign in and load <b>" + esc(drive.fileName) + "</b>.", "warn");
+          $("btnRetrySync").textContent = "Sign in and sync";
+          $("btnRetrySync").classList.remove("hide");
+        });
+      }
+      setStatus("Ready. Create or open a Drive file.", "idle");
+    }).catch(function (e) {
+      setStatus(esc(e.message) + " — using the copy on this device.", "warn");
+    });
+  } else {
+    $("driveSetup").classList.remove("hide");
+    setStatus("Kept in this browser only. Add a client ID to save into Drive.", "warn");
+  }
+
+  if (savedMode === "file" && FSA) {
+    idbGet("csvHandle").then(function (h) {
+      if (!h) return;
+      fileHandle = h;
+      return h.queryPermission({ mode: "readwrite" }).then(function (p) {
+        if (mode === "drive") return;
+        mode = "file";
+        if (p === "granted") {
+          return h.getFile().then(function (f) { return f.text(); }).then(function (t) {
+            var n = importCSV(t, true, true);
+            setStatus("Using <b>" + esc(h.name) + "</b> on this device — " + n + " rows", "ok");
+          });
+        }
+        needsReconnect();
+      });
+    }).catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>
