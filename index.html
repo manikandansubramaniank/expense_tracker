@@ -10,6 +10,7 @@
     --ink:#12262B; --ink-soft:#1C3940; --paper:#F3F5F1; --card:#FFFFFF;
     --line:#DDE3DD; --text:#14211F; --muted:#66756F;
     --in:#1E7A5A; --in-tint:#E4F1EA; --out:#AB3E56; --out-tint:#F7E6EA;
+    --inv:#6C4FD6; --inv-tint:#EBE7FA;
     --focus:#3E8E82; --warn:#8A6410;
     --header-bg:#1D5FD6; --header-text:#F3F5F1;
     --radius:14px; --tap:48px;
@@ -33,6 +34,7 @@
   .seg button[aria-pressed="true"]{background:var(--card);color:var(--text);box-shadow:0 1px 2px rgba(18,38,43,.12)}
   .seg button.is-in[aria-pressed="true"]{color:var(--in)}
   .seg button.is-out[aria-pressed="true"]{color:var(--out)}
+  .seg button.is-inv[aria-pressed="true"]{color:var(--inv)}
 
   .field{margin-bottom:12px}
   .field label{display:block;font-size:.8125rem;color:var(--muted);margin-bottom:5px}
@@ -71,6 +73,7 @@
   #amount{font-variant-numeric:tabular-nums;font-weight:600;padding-left:26px}
   body[data-type="Income"] #amount{color:var(--in)}
   body[data-type="Expenses"] #amount{color:var(--out)}
+  body[data-type="Investment"] #amount{color:var(--inv)}
   .err{color:var(--out);font-size:.8125rem;margin:0 0 10px;display:none}
   .err.show{display:block}
 
@@ -112,7 +115,7 @@
   #toast.show{transform:translate(-50%,0)}
   @media (prefers-reduced-motion:reduce){#toast{transition:none}}
 
-  .tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:4px;background:var(--card);
+  .tabbar{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:520px;display:flex;gap:4px;background:var(--card);
     border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:8}
   .tabbar button{flex:1;border:0;background:transparent;font:inherit;font-size:.75rem;font-weight:500;
     color:var(--muted);padding:9px 4px;border-radius:10px;cursor:pointer}
@@ -125,6 +128,7 @@
   .summary-row.cash b{font-size:1.3125rem}
   .summary-row .v-in{color:var(--in)}
   .summary-row .v-out{color:var(--out)}
+  .summary-row .v-inv{color:var(--inv)}
   .summary-row .v-pos{color:var(--in)}
   .summary-row .v-neg{color:var(--out)}
 
@@ -138,6 +142,31 @@
   .chart-legend-row .lbl{flex:1;color:var(--text);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .chart-legend-row .val{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
   .chart-empty{color:var(--muted);text-align:center;padding:20px 12px;width:100%;margin:0}
+
+  .barchart{display:flex;flex-direction:column;gap:10px}
+  .barchart-row{display:flex;align-items:center;gap:8px}
+  .barchart-row .bc-label{flex:0 0 76px;font-size:.75rem;color:var(--muted);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .barchart-row .bc-track{flex:1;background:#EEF1EC;border-radius:6px;height:20px;overflow:hidden}
+  .barchart-row .bc-fill{height:100%;min-width:2px;background:var(--out);border-radius:6px}
+  .barchart-row .bc-val{flex:0 0 auto;min-width:76px;font-size:.8125rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+
+  .table-wrap{overflow-x:auto}
+  .details-table{width:100%;min-width:420px;border-collapse:collapse;font-size:.8125rem}
+  .details-table th,.details-table td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  .details-table th{color:var(--muted);font-weight:600;font-size:.75rem}
+  .details-table td:nth-child(3){white-space:normal}
+  .details-table th:last-child,.details-table td:last-child{text-align:right}
+  .details-table tbody tr:last-child td{border-bottom:0}
+  .details-table td.amt-in{color:var(--in)}
+  .details-table td.amt-out{color:var(--out)}
+  .details-table td.amt-inv{color:var(--inv)}
+  .details-table .table-empty{color:var(--muted);text-align:center;padding:20px 6px;white-space:normal}
+
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
+  .pager button{flex:0 0 auto;min-height:36px;padding:0 14px;border:1px solid var(--line);border-radius:8px;
+    background:var(--card);color:var(--text);font:inherit;font-weight:500;cursor:pointer}
+  .pager button:disabled{opacity:.4;cursor:default}
+  .pager .pager-info{font-size:.8125rem;color:var(--muted)}
 
   .apphead{background:var(--header-bg);border-radius:var(--radius);padding:14px;text-align:center}
   .apphead h1{margin:0;font-size:1.0625rem;font-weight:700;color:var(--header-text)}
@@ -157,36 +186,41 @@
 
       <div class="seg" role="group" aria-label="Entry type">
         <button type="button" class="is-out" id="btnExpense" aria-pressed="true">Expense</button>
+        <button type="button" class="is-inv" id="btnInvestment" aria-pressed="false">Investment</button>
         <button type="button" class="is-in" id="btnIncome" aria-pressed="false">Income</button>
       </div>
 
       <div class="row2">
         <div class="field">
-          <label for="date">Date</label>
-          <input type="date" id="date">
+          <label for="date">Date *</label>
+          <input type="date" id="date" required>
         </div>
         <div class="field">
-          <label for="amount">Amount</label>
+          <label for="amount">Amount *</label>
           <div class="amount-wrap">
             <span class="cur" aria-hidden="true">₹</span>
-            <input type="number" id="amount" inputmode="decimal" step="0.01" min="0" placeholder="0.00">
+            <input type="number" id="amount" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
           </div>
         </div>
       </div>
 
       <div class="field">
-        <label for="category">Category</label>
-        <select id="category">
+        <label for="category">Category *</label>
+        <select id="category" required>
           <option>Household</option>
-          <option>Food and Groceries</option>
+          <option selected>Food and Groceries</option>
           <option>Travel</option>
+          <option>Entertainment</option>
+          <option>Insurance</option>
           <option>Investment</option>
+          <option>Income</option>
+          <option>Others</option>
         </select>
       </div>
 
       <div class="field">
-        <label for="description">Description</label>
-        <input type="text" id="description" placeholder="What was it for?" maxlength="120">
+        <label for="description">Description *</label>
+        <input type="text" id="description" placeholder="What was it for?" maxlength="120" required>
       </div>
 
       <p class="err" id="formError"></p>
@@ -279,6 +313,7 @@
       <h2>Summary</h2>
       <div class="summary-row"><span>Total Income</span><b class="num v-in" id="sumIncome">₹0.00</b></div>
       <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses">₹0.00</b></div>
+      <div class="summary-row"><span>Total Investment</span><b class="num v-inv" id="sumInvestment">₹0.00</b></div>
       <div class="summary-row cash"><span>Cash in Hand</span><b class="num" id="sumCash">₹0.00</b></div>
     </section>
 
@@ -347,10 +382,8 @@
     </section>
 
     <section class="card">
-      <h2>Summary</h2>
-      <div class="summary-row"><span>Total Income</span><b class="num v-in" id="sumIncome3">₹0.00</b></div>
-      <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses3">₹0.00</b></div>
-      <div class="summary-row cash"><span>Cash in Hand</span><b class="num" id="sumCash3">₹0.00</b></div>
+      <h2>Expenses by Month</h2>
+      <div id="monthBarChart3" class="barchart"></div>
     </section>
 
   </div>
@@ -410,10 +443,20 @@
     </section>
 
     <section class="card">
-      <h2>Summary</h2>
-      <div class="summary-row"><span>Total Income</span><b class="num v-in" id="sumIncome4">₹0.00</b></div>
-      <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses4">₹0.00</b></div>
-      <div class="summary-row cash"><span>Cash in Hand</span><b class="num" id="sumCash4">₹0.00</b></div>
+      <h2>Details</h2>
+      <div class="table-wrap">
+        <table class="details-table" id="detailsTable4">
+          <thead>
+            <tr><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th>Amount</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager hide" id="detailsPager4">
+        <button type="button" id="detailsPrev4">Prev</button>
+        <span class="pager-info" id="detailsPageInfo4"></span>
+        <button type="button" id="detailsNext4">Next</button>
+      </div>
     </section>
 
   </div>
@@ -424,8 +467,8 @@
 <nav class="tabbar" role="tablist" aria-label="Pages">
   <button type="button" data-page="page1" aria-pressed="true">Add</button>
   <button type="button" data-page="page2" aria-pressed="false">Summary</button>
-  <button type="button" data-page="page3" aria-pressed="false">Page 3</button>
-  <button type="button" data-page="page4" aria-pressed="false">Page 4</button>
+  <button type="button" data-page="page3" aria-pressed="false">Month Comparison</button>
+  <button type="button" data-page="page4" aria-pressed="false">Details</button>
 </nav>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -434,7 +477,7 @@
 (function () {
   "use strict";
 
-  var CATEGORIES = ["Household", "Food and Groceries", "Travel", "Investment"];
+  var CATEGORIES = ["Household", "Food and Groceries", "Travel", "Entertainment", "Insurance", "Investment", "Income", "Others"];
   var K_MODE = "expenseTracker.mode";
 
   var entries = [];
@@ -453,6 +496,7 @@
     return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   function pad(x) { return String(x).padStart(2, "0"); }
+  function normDesc(v) { return String(v || "").replace(/[^\S ]+/g, " ").trim().replace(/\s+/g, " ").toLowerCase(); }
   function todayISO() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
   function toast(msg) {
@@ -499,7 +543,12 @@
     if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
     return null;
   }
-  function normType(v) { v = (v || "").trim().toLowerCase(); return (v === "income" || v === "in" || v === "credit") ? "Income" : "Expenses"; }
+  function normType(v) {
+    v = (v || "").trim().toLowerCase();
+    if (v === "income" || v === "in" || v === "credit") return "Income";
+    if (v === "investment" || v === "inv") return "Investment";
+    return "Expenses";
+  }
   function normCategory(v) {
     v = (v || "").trim();
     for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].toLowerCase() === v.toLowerCase()) return CATEGORIES[i];
@@ -708,7 +757,7 @@
     { value: "07", label: "July" }, { value: "08", label: "August" }, { value: "09", label: "September" },
     { value: "10", label: "October" }, { value: "11", label: "November" }, { value: "12", label: "December" }
   ];
-  var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }];
+  var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
   var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#6C4FD6", "#0E8FA3", "#C2622D", "#5B6470"];
 
   function expenseTotal(matchFn) {
@@ -727,7 +776,8 @@
       var years = {}, descriptions = {};
       entries.forEach(function (e) {
         years[e.date.slice(0, 4)] = true;
-        if (e.description) descriptions[e.description] = true;
+        var dKey = normDesc(e.description);
+        if (dKey) descriptions[dKey] = true;
       });
       var yList = Object.keys(years).sort().reverse();
       msYear.setOptions(yList.map(function (y) {
@@ -736,7 +786,7 @@
 
       var descList = Object.keys(descriptions).sort(function (a, b) { return a.localeCompare(b); });
       msDescription.setOptions(descList.map(function (v) {
-        return { value: v, label: v, amount: expenseTotal(function (e) { return (e.description || "") === v; }) };
+        return { value: v, label: v, amount: expenseTotal(function (e) { return normDesc(e.description) === v; }) };
       }));
 
       msMonth.setOptions(MONTHS.map(function (mo) {
@@ -769,7 +819,7 @@
         if (d.length && d.indexOf(p[2]) === -1) return false;
         if (c.length && c.indexOf(e.category) === -1) return false;
         if (t.length && t.indexOf(e.type) === -1) return false;
-        if (desc.length && desc.indexOf(e.description || "") === -1) return false;
+        if (desc.length && desc.indexOf(normDesc(e.description)) === -1) return false;
         return true;
       });
     }
@@ -815,18 +865,114 @@
       });
     }
 
+    function updateMonthChart(list) {
+      var wrap = $("monthBarChart" + suffix);
+      if (!wrap) return;
+
+      var totals = {};
+      list.forEach(function (e) { if (e.type === "Expenses") { var mo = e.date.slice(5, 7); totals[mo] = (totals[mo] || 0) + e.amount; } });
+      var months = Object.keys(totals).sort();
+
+      wrap.innerHTML = "";
+      if (!months.length) {
+        var empty = document.createElement("p"); empty.className = "chart-empty"; empty.textContent = "No expenses to chart";
+        wrap.appendChild(empty);
+        return;
+      }
+
+      var max = months.reduce(function (m, k) { return Math.max(m, totals[k]); }, 0);
+      months.forEach(function (mo) {
+        var label = MONTHS[parseInt(mo, 10) - 1].label.slice(0, 3);
+
+        var row = document.createElement("div"); row.className = "barchart-row";
+        var lbl = document.createElement("span"); lbl.className = "bc-label"; lbl.textContent = label;
+        var track = document.createElement("div"); track.className = "bc-track";
+        var fill = document.createElement("div"); fill.className = "bc-fill";
+        fill.style.width = (max ? (totals[mo] / max * 100) : 0) + "%";
+        track.appendChild(fill);
+        var val = document.createElement("span"); val.className = "bc-val"; val.textContent = money(totals[mo]);
+
+        row.appendChild(lbl); row.appendChild(track); row.appendChild(val);
+        wrap.appendChild(row);
+      });
+    }
+
+    var DETAILS_PAGE_SIZE = 10;
+    var detailsRows = [];
+    var detailsPage = 1;
+
+    function renderDetailsPage() {
+      var table = $("detailsTable" + suffix);
+      if (!table) return;
+      var tbody = table.querySelector("tbody");
+      var pager = $("detailsPager" + suffix);
+      var totalPages = Math.max(1, Math.ceil(detailsRows.length / DETAILS_PAGE_SIZE));
+      if (detailsPage > totalPages) detailsPage = totalPages;
+      if (detailsPage < 1) detailsPage = 1;
+
+      var start = (detailsPage - 1) * DETAILS_PAGE_SIZE;
+      var pageRows = detailsRows.slice(start, start + DETAILS_PAGE_SIZE);
+
+      tbody.innerHTML = "";
+      if (!pageRows.length) {
+        var tr = document.createElement("tr");
+        var td = document.createElement("td");
+        td.colSpan = 5; td.className = "table-empty"; td.textContent = "No entries to show";
+        tr.appendChild(td); tbody.appendChild(tr);
+      } else {
+        pageRows.forEach(function (e) {
+          var amtClass = e.type === "Income" ? "amt-in" : e.type === "Investment" ? "amt-inv" : "amt-out";
+          var row = document.createElement("tr");
+          [e.date, e.category, e.description || "", e.type].forEach(function (v) {
+            var td = document.createElement("td"); td.textContent = v; row.appendChild(td);
+          });
+          var amtTd = document.createElement("td"); amtTd.className = "num " + amtClass; amtTd.textContent = money(e.amount);
+          row.appendChild(amtTd);
+          tbody.appendChild(row);
+        });
+      }
+
+      if (pager) {
+        pager.classList.toggle("hide", detailsRows.length <= DETAILS_PAGE_SIZE);
+        var info = $("detailsPageInfo" + suffix), prevBtn = $("detailsPrev" + suffix), nextBtn = $("detailsNext" + suffix);
+        if (info) info.textContent = "Page " + detailsPage + " of " + totalPages;
+        if (prevBtn) prevBtn.disabled = detailsPage <= 1;
+        if (nextBtn) nextBtn.disabled = detailsPage >= totalPages;
+      }
+    }
+
+    function updateDetailsTable(list) {
+      if (!$("detailsTable" + suffix)) return;
+      detailsRows = list.slice().sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+      detailsPage = 1;
+      renderDetailsPage();
+    }
+
+    var detailsPrevBtn = $("detailsPrev" + suffix), detailsNextBtn = $("detailsNext" + suffix);
+    if (detailsPrevBtn) detailsPrevBtn.addEventListener("click", function () { detailsPage--; renderDetailsPage(); });
+    if (detailsNextBtn) detailsNextBtn.addEventListener("click", function () { detailsPage++; renderDetailsPage(); });
+
     function updateSummary() {
       var list = filteredEntries();
-      var inc = 0, exp = 0;
-      list.forEach(function (e) { if (e.type === "Income") inc += e.amount; else exp += e.amount; });
-      var cash = inc - exp;
-      $("sumIncome" + suffix).textContent = money(inc);
-      $("sumExpenses" + suffix).textContent = money(exp);
-      var cashEl = $("sumCash" + suffix);
-      cashEl.textContent = (cash < 0 ? "-" : "") + money(cash);
-      cashEl.classList.toggle("v-pos", cash >= 0);
-      cashEl.classList.toggle("v-neg", cash < 0);
+      var inc = 0, exp = 0, inv = 0;
+      list.forEach(function (e) {
+        if (e.type === "Income") inc += e.amount;
+        else if (e.type === "Investment") inv += e.amount;
+        else exp += e.amount;
+      });
+      var cash = inc - exp - inv;
+      var incEl = $("sumIncome" + suffix), expEl = $("sumExpenses" + suffix), invEl = $("sumInvestment" + suffix), cashEl = $("sumCash" + suffix);
+      if (incEl) incEl.textContent = money(inc);
+      if (expEl) expEl.textContent = money(exp);
+      if (invEl) invEl.textContent = money(inv);
+      if (cashEl) {
+        cashEl.textContent = (cash < 0 ? "-" : "") + money(cash);
+        cashEl.classList.toggle("v-pos", cash >= 0);
+        cashEl.classList.toggle("v-neg", cash < 0);
+      }
       updateChart(list);
+      updateMonthChart(list);
+      updateDetailsTable(list);
     }
 
     [msYear, msMonth, msDay, msCategory, msDescription, msType].forEach(function (ms) {
@@ -878,23 +1024,30 @@
     currentType = t; document.body.dataset.type = t;
     $("btnIncome").setAttribute("aria-pressed", String(t === "Income"));
     $("btnExpense").setAttribute("aria-pressed", String(t === "Expenses"));
+    $("btnInvestment").setAttribute("aria-pressed", String(t === "Investment"));
+    $("category").value = t === "Investment" ? "Investment" : t === "Income" ? "Income" : "Food and Groceries";
   }
   $("btnIncome").addEventListener("click", function () { setType("Income"); });
   $("btnExpense").addEventListener("click", function () { setType("Expenses"); });
+  $("btnInvestment").addEventListener("click", function () { setType("Investment"); });
 
   $("btnAdd").addEventListener("click", function () {
     var err = $("formError");
     var date = $("date").value, amount = parseFloat($("amount").value);
+    var category = $("category").value;
+    var description = $("description").value.trim();
     if (!date) { err.textContent = "Pick a date."; err.classList.add("show"); return; }
     if (!(amount > 0)) { err.textContent = "Enter an amount greater than zero."; err.classList.add("show"); return; }
+    if (!category) { err.textContent = "Pick a category."; err.classList.add("show"); return; }
+    if (!description) { err.textContent = "Enter a description."; err.classList.add("show"); return; }
     err.classList.remove("show");
     entries.push({
-      id: "e" + (++seq) + "_" + Date.now(), date: date, category: $("category").value,
-      description: $("description").value.trim(), type: currentType, amount: Math.abs(amount)
+      id: "e" + (++seq) + "_" + Date.now(), date: date, category: category,
+      description: description, type: currentType, amount: Math.abs(amount)
     });
     $("amount").value = ""; $("description").value = "";
     render(); persist();
-    toast(currentType === "Income" ? "Income added" : "Expense added");
+    toast(currentType === "Income" ? "Income added" : currentType === "Investment" ? "Investment added" : "Expense added");
   });
 
   /* --- local file buttons --- */
