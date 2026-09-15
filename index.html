@@ -28,6 +28,10 @@
   main{padding:16px 16px 0;display:flex;flex-direction:column;gap:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
   .card > h2{margin:0 0 12px;font-size:.9375rem;font-weight:600}
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .card-head h2{margin:0;font-size:.9375rem;font-weight:600}
+  .btn-clear{min-height:32px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);font:inherit;font-size:.75rem;font-weight:500;color:var(--out);cursor:pointer;white-space:nowrap}
+  .btn-clear:active{background:var(--out-tint)}
 
   .seg{display:flex;gap:6px;background:#EEF1EC;border-radius:11px;padding:4px;margin-bottom:14px}
   .seg button{flex:1;min-height:40px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:500;color:var(--muted);cursor:pointer}
@@ -279,7 +283,7 @@
   <div id="page2" class="page hide">
 
     <section class="card">
-      <h2>Filters</h2>
+      <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters" hidden>Clear all filters</button></div>
 
       <div class="field">
         <label id="fYearLabel">Year</label>
@@ -351,7 +355,7 @@
   <div id="page3" class="page hide">
 
     <section class="card">
-      <h2>Filters</h2>
+      <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters3" hidden>Clear all filters</button></div>
 
       <div class="field">
         <label id="fYear3Label">Year</label>
@@ -412,7 +416,7 @@
   <div id="page4" class="page hide">
 
     <section class="card">
-      <h2>Filters</h2>
+      <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters4" hidden>Clear all filters</button></div>
 
       <div class="field">
         <label id="fYear4Label">Year</label>
@@ -817,6 +821,8 @@
       setOptions: setOptions,
       getSelected: function () { return Object.keys(selected); },
       setOnChange: function (fn) { onChange = fn; },
+      clear: function () { selected = {}; refreshChecks(); updateLabel(); },
+      setSelected: function (values) { selected = {}; values.forEach(function (v) { selected[v] = true; }); refreshChecks(); updateLabel(); },
       close: close
     };
     return api;
@@ -869,6 +875,8 @@
         var dKey = normDesc(e.description);
         if (dKey) descriptions[dKey] = true;
       });
+      // keep a selected year (e.g. the Summary page's default current year) listed even before it has entries
+      msYear.getSelected().forEach(function (y) { years[y] = true; });
       var yList = Object.keys(years).sort().reverse().map(function (y) { return { value: y, label: y }; });
       var descList = Object.keys(descriptions).sort(function (a, b) { return a.localeCompare(b); }).map(function (v) { return { value: v, label: v }; });
       var dayList = [];
@@ -1072,18 +1080,45 @@
       updateDetailsTable(list);
     }
 
-    [msYear, msMonth, msDay, msCategory, msDescription, msType].forEach(function (ms) {
-      ms.setOnChange(function () { refreshOptions(); updateSummary(); });
-    });
+    var allSelects = [msYear, msMonth, msDay, msCategory, msDescription, msType];
+    var clearAllBtn = $("btnClearFilters" + suffix);
 
-    return { refreshOptions: refreshOptions, updateSummary: updateSummary };
+    function activeCount() {
+      return allSelects.reduce(function (n, ms) { return n + (ms.getSelected().length ? 1 : 0); }, 0);
+    }
+    function updateClearAll() {
+      if (!clearAllBtn) return;
+      var n = activeCount();
+      clearAllBtn.hidden = n === 0;
+      clearAllBtn.textContent = "Clear all filters" + (n > 1 ? " (" + n + ")" : "");
+    }
+    function onFilterChange() { refreshOptions(); updateSummary(); updateClearAll(); }
+
+    allSelects.forEach(function (ms) { ms.setOnChange(onFilterChange); });
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener("click", function () {
+        allSelects.forEach(function (ms) { ms.clear(); ms.close(); });
+        onFilterChange();
+        toast("Filters cleared");
+      });
+    }
+
+    return {
+      refreshOptions: function () { refreshOptions(); updateClearAll(); },
+      updateSummary: updateSummary,
+      setDefaults: function (d) { if (d.year) msYear.setSelected([d.year]); if (d.month) msMonth.setSelected([d.month]); }
+    };
   }
 
+  var today = todayISO();
   var filterPanels = {
     page2: FilterPanel(""),
     page3: FilterPanel("3"),
     page4: FilterPanel("4")
   };
+
+  // Summary page opens on the current month by default; the other pages start unfiltered
+  filterPanels.page2.setDefaults({ year: today.slice(0, 4), month: today.slice(5, 7) });
 
   function refreshFilterOptions() {
     Object.keys(filterPanels).forEach(function (k) { filterPanels[k].refreshOptions(); });
