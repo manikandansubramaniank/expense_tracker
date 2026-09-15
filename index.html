@@ -23,6 +23,7 @@
   .wrap{max-width:520px;margin:0 auto}
   .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
   .hide{display:none !important}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 
   main{padding:16px 16px 0;display:flex;flex-direction:column;gap:14px}
@@ -174,16 +175,46 @@
   .bc-val.is-in{color:var(--in)}  .bc-val.is-inv{color:var(--inv)}  .bc-val.is-out{color:var(--out)}
 
   .table-wrap{overflow-x:auto}
-  .details-table{width:100%;min-width:420px;border-collapse:collapse;font-size:.8125rem}
+  .details-table{width:100%;min-width:480px;border-collapse:collapse;font-size:.8125rem}
   .details-table th,.details-table td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
   .details-table th{color:var(--muted);font-weight:600;font-size:.75rem}
   .details-table td:nth-child(3){white-space:normal}
-  .details-table th:last-child,.details-table td:last-child{text-align:right}
+  .details-table .col-amt{text-align:right}
+  .details-table .col-act{text-align:right;width:1%;padding-right:2px;position:relative}  /* keeps the hidden header label inside the scrolling table */
   .details-table tbody tr:last-child td{border-bottom:0}
   .details-table td.amt-in{color:var(--in)}
   .details-table td.amt-out{color:var(--out)}
   .details-table td.amt-inv{color:var(--inv)}
   .details-table .table-empty{color:var(--muted);text-align:center;padding:20px 6px;white-space:normal}
+  .row-edit{min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+    font:inherit;font-size:.75rem;font-weight:500;color:var(--focus);cursor:pointer;white-space:nowrap}
+  .row-edit:active{background:#EEF1EC}
+  .details-table .col-sel{width:1%;padding-left:2px;padding-right:4px}
+  .details-table .col-sel input{appearance:auto;-webkit-appearance:checkbox;width:18px;min-width:18px;height:18px;min-height:18px;
+    padding:0;margin:0;border:none;background:none;border-radius:0;accent-color:var(--focus);cursor:pointer;display:block}
+  .details-table tr.is-selected td{background:#F4F8F7}
+
+  .selbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px;padding:8px 10px;background:#EEF1EC;border-radius:10px;font-size:.8125rem}
+  .selbar b{font-weight:600;white-space:nowrap}
+  .selbar-actions{display:flex;gap:6px;margin-left:auto}
+  .selbar button{min-height:32px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+    font:inherit;font-size:.75rem;font-weight:500;color:var(--text);cursor:pointer;white-space:nowrap}
+  .selbar button:active{background:#F4F8F7}
+  .selbar button.is-danger{color:var(--out)}
+  .selbar button.is-link{border:0;background:none;color:var(--focus);text-decoration:underline;padding:0 2px;min-height:0}
+
+  .edit-dialog{border:0;border-radius:var(--radius);padding:0;width:calc(100% - 32px);max-width:480px;
+    max-height:calc(100vh - 32px);background:var(--card);color:var(--text);box-shadow:0 12px 32px rgba(18,38,43,.25)}
+  .edit-dialog::backdrop{background:rgba(18,38,43,.45)}
+  .edit-dialog form{padding:14px;margin:0}
+  .edit-dialog .amount-wrap input{font-variant-numeric:tabular-nums;font-weight:600;padding-left:26px}
+  .edit-dialog[data-type="Income"] #editAmount{color:var(--in)}
+  .edit-dialog[data-type="Expenses"] #editAmount{color:var(--out)}
+  .edit-dialog[data-type="Investment"] #editAmount{color:var(--inv)}
+  .edit-dialog .hint{margin:0 0 12px}
+  .edit-actions{display:flex;flex-direction:column;gap:10px}
+  .btn-danger{background:var(--card);color:var(--out);border:1px solid var(--line);font-weight:500}
+  .btn-danger:active{background:var(--out-tint)}
 
   .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px}
   .pager button{flex:0 0 auto;min-height:36px;padding:0 14px;border:1px solid var(--line);border-radius:8px;
@@ -469,10 +500,11 @@
 
     <section class="card">
       <h2>Details</h2>
+      <div class="selbar hide" id="detailsSelBar4"></div>
       <div class="table-wrap">
         <table class="details-table" id="detailsTable4">
           <thead>
-            <tr><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th>Amount</th></tr>
+            <tr><th class="col-sel"><input type="checkbox" id="detailsSelAll4" aria-label="Select all entries on this page"></th><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th class="col-amt">Amount</th><th class="col-act"><span class="sr-only">Actions</span></th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -495,6 +527,95 @@
   <button type="button" data-page="page3" aria-pressed="false">Month Comparison</button>
   <button type="button" data-page="page4" aria-pressed="false">Details</button>
 </nav>
+
+<dialog id="editDialog" class="edit-dialog" data-type="Expenses" aria-labelledby="editTitle">
+  <form id="editForm" novalidate>
+    <div class="card-head"><h2 id="editTitle">Edit entry</h2><button type="button" class="btn-clear" id="btnEditClose">Cancel</button></div>
+
+    <div class="seg" role="group" aria-label="Entry type">
+      <button type="button" class="is-out" data-type="Expenses" aria-pressed="true">Expense</button>
+      <button type="button" class="is-inv" data-type="Investment" aria-pressed="false">Investment</button>
+      <button type="button" class="is-in" data-type="Income" aria-pressed="false">Income</button>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="editDate">Date *</label>
+        <input type="date" id="editDate" required>
+      </div>
+      <div class="field">
+        <label for="editAmount">Amount *</label>
+        <div class="amount-wrap">
+          <span class="cur" aria-hidden="true">₹</span>
+          <input type="number" id="editAmount" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="editCategory">Category *</label>
+      <select id="editCategory" required></select>
+    </div>
+
+    <div class="field">
+      <label for="editDescription">Description *</label>
+      <input type="text" id="editDescription" placeholder="What was it for?" maxlength="120" required>
+    </div>
+
+    <p class="err" id="editError"></p>
+    <div class="edit-actions">
+      <button type="submit" class="btn" id="btnEditSave">Save changes</button>
+      <button type="button" class="btn btn-danger" id="btnEditDelete">Delete entry</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="groupDialog" class="edit-dialog" aria-labelledby="groupTitle">
+  <form id="groupForm" novalidate>
+    <div class="card-head"><h2 id="groupTitle">Edit entries</h2><button type="button" class="btn-clear" id="btnGroupClose">Cancel</button></div>
+    <p class="hint">Only the fields you fill in are changed on every selected entry. Leave a field as is to keep each entry's own value.</p>
+
+    <div class="field">
+      <label for="groupType">Type</label>
+      <select id="groupType">
+        <option value="">Keep as is</option>
+        <option value="Expenses">Expense</option>
+        <option value="Investment">Investment</option>
+        <option value="Income">Income</option>
+      </select>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="groupDate">Date</label>
+        <input type="date" id="groupDate">
+      </div>
+      <div class="field">
+        <label for="groupAmount">Amount</label>
+        <div class="amount-wrap">
+          <span class="cur" aria-hidden="true">₹</span>
+          <input type="number" id="groupAmount" inputmode="decimal" step="0.01" min="0" placeholder="Keep as is">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="groupCategory">Category</label>
+      <select id="groupCategory"></select>
+    </div>
+
+    <div class="field">
+      <label for="groupDescription">Description</label>
+      <input type="text" id="groupDescription" placeholder="Keep as is" maxlength="120">
+    </div>
+
+    <p class="err" id="groupError"></p>
+    <div class="edit-actions">
+      <button type="submit" class="btn" id="btnGroupSave">Apply changes</button>
+      <button type="button" class="btn btn-danger" id="btnGroupDelete">Delete entries</button>
+    </div>
+  </form>
+</dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -1005,6 +1126,41 @@
     var DETAILS_PAGE_SIZE = 10;
     var detailsRows = [];
     var detailsPage = 1;
+    var selectedIds = {};          // entries ticked for group edit; survives paging, cleared on filter change
+
+    function selectedCount() { return Object.keys(selectedIds).length; }
+    function clearSelection() { selectedIds = {}; }
+    function pruneSelection() {
+      var keep = {};
+      detailsRows.forEach(function (e) { if (selectedIds[e.id]) keep[e.id] = true; });
+      selectedIds = keep;
+    }
+
+    function renderSelBar() {
+      var bar = $("detailsSelBar" + suffix);
+      if (!bar) return;
+      var n = selectedCount(), total = detailsRows.length;
+      bar.classList.toggle("hide", n === 0);
+      bar.innerHTML = "";
+      if (!n) return;
+
+      var count = document.createElement("b"); count.textContent = n + " selected"; bar.appendChild(count);
+      if (n < total) {
+        var all = document.createElement("button"); all.type = "button"; all.className = "is-link";
+        all.textContent = "Select all " + total;
+        all.addEventListener("click", function () { detailsRows.forEach(function (e) { selectedIds[e.id] = true; }); renderDetailsPage(); });
+        bar.appendChild(all);
+      }
+      var actions = document.createElement("span"); actions.className = "selbar-actions";
+      var edit = document.createElement("button"); edit.type = "button"; edit.textContent = "Edit";
+      edit.addEventListener("click", function () { openGroupEdit(Object.keys(selectedIds), clearSelection); });
+      var del = document.createElement("button"); del.type = "button"; del.className = "is-danger"; del.textContent = "Delete";
+      del.addEventListener("click", function () { deleteEntries(Object.keys(selectedIds), false, clearSelection); });
+      var clear = document.createElement("button"); clear.type = "button"; clear.textContent = "Clear";
+      clear.addEventListener("click", function () { clearSelection(); renderDetailsPage(); });
+      actions.appendChild(edit); actions.appendChild(del); actions.appendChild(clear);
+      bar.appendChild(actions);
+    }
 
     function renderDetailsPage() {
       var table = $("detailsTable" + suffix);
@@ -1022,20 +1178,36 @@
       if (!pageRows.length) {
         var tr = document.createElement("tr");
         var td = document.createElement("td");
-        td.colSpan = 5; td.className = "table-empty"; td.textContent = "No entries to show";
+        td.colSpan = 7; td.className = "table-empty"; td.textContent = "No entries to show";
         tr.appendChild(td); tbody.appendChild(tr);
       } else {
         pageRows.forEach(function (e) {
           var amtClass = e.type === "Income" ? "amt-in" : e.type === "Investment" ? "amt-inv" : "amt-out";
           var row = document.createElement("tr");
+          row.classList.toggle("is-selected", !!selectedIds[e.id]);
+          var selTd = document.createElement("td"); selTd.className = "col-sel";
+          var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!selectedIds[e.id];
+          cb.setAttribute("aria-label", "Select " + e.date + " " + (e.description || e.category));
+          cb.addEventListener("change", function () {
+            if (cb.checked) selectedIds[e.id] = true; else delete selectedIds[e.id];
+            row.classList.toggle("is-selected", cb.checked);
+            renderSelBar(); syncSelAll(pageRows);
+          });
+          selTd.appendChild(cb); row.appendChild(selTd);
           [e.date, e.category, e.description || "", e.type].forEach(function (v) {
             var td = document.createElement("td"); td.textContent = v; row.appendChild(td);
           });
-          var amtTd = document.createElement("td"); amtTd.className = "num " + amtClass; amtTd.textContent = money(e.amount);
+          var amtTd = document.createElement("td"); amtTd.className = "num col-amt " + amtClass; amtTd.textContent = money(e.amount);
           row.appendChild(amtTd);
+          var actTd = document.createElement("td"); actTd.className = "col-act";
+          var editBtn = document.createElement("button"); editBtn.type = "button"; editBtn.className = "row-edit"; editBtn.textContent = "Edit";
+          editBtn.setAttribute("aria-label", "Edit " + e.date + " " + (e.description || e.category) + " " + money(e.amount));
+          editBtn.addEventListener("click", function () { openEdit(e.id); });
+          actTd.appendChild(editBtn); row.appendChild(actTd);
           tbody.appendChild(row);
         });
       }
+      renderSelBar(); syncSelAll(pageRows);
 
       if (pager) {
         pager.classList.toggle("hide", detailsRows.length <= DETAILS_PAGE_SIZE);
@@ -1046,18 +1218,37 @@
       }
     }
 
-    function updateDetailsTable(list) {
+    // header checkbox reflects the rows on the current page: none / some / all ticked
+    function syncSelAll(pageRows) {
+      var all = $("detailsSelAll" + suffix);
+      if (!all) return;
+      var n = pageRows.filter(function (e) { return selectedIds[e.id]; }).length;
+      all.checked = pageRows.length > 0 && n === pageRows.length;
+      all.indeterminate = n > 0 && n < pageRows.length;
+      all.disabled = pageRows.length === 0;
+    }
+
+    function updateDetailsTable(list, keepPage) {
       if (!$("detailsTable" + suffix)) return;
       detailsRows = list.slice().sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
-      detailsPage = 1;
+      if (!keepPage) { detailsPage = 1; clearSelection(); } else pruneSelection();
       renderDetailsPage();
     }
 
     var detailsPrevBtn = $("detailsPrev" + suffix), detailsNextBtn = $("detailsNext" + suffix);
     if (detailsPrevBtn) detailsPrevBtn.addEventListener("click", function () { detailsPage--; renderDetailsPage(); });
     if (detailsNextBtn) detailsNextBtn.addEventListener("click", function () { detailsPage++; renderDetailsPage(); });
+    var selAllBox = $("detailsSelAll" + suffix);
+    if (selAllBox) selAllBox.addEventListener("change", function () {
+      var start = (detailsPage - 1) * DETAILS_PAGE_SIZE;
+      detailsRows.slice(start, start + DETAILS_PAGE_SIZE).forEach(function (e) {
+        if (selAllBox.checked) selectedIds[e.id] = true; else delete selectedIds[e.id];
+      });
+      renderDetailsPage();
+    });
 
-    function updateSummary() {
+    // keepPage: after editing/deleting an entry, stay on the same page of the Details table
+    function updateSummary(keepPage) {
       var list = filteredEntries();
       var inc = 0, exp = 0, inv = 0;
       list.forEach(function (e) {
@@ -1077,7 +1268,7 @@
       }
       updateChart(list);
       updateMonthChart(list);
-      updateDetailsTable(list);
+      updateDetailsTable(list, keepPage);
     }
 
     var allSelects = [msYear, msMonth, msDay, msCategory, msDescription, msType];
@@ -1128,7 +1319,9 @@
      Page navigation
      ========================================================= */
   var PAGES = ["page1", "page2", "page3", "page4"];
+  var currentPage = "page1";
   function showPage(id) {
+    currentPage = id;
     PAGES.forEach(function (p) { $(p).classList.toggle("hide", p !== id); });
     document.querySelectorAll(".tabbar button").forEach(function (b) {
       b.setAttribute("aria-pressed", String(b.dataset.page === id));
@@ -1163,37 +1356,210 @@
   $("btnExpense").addEventListener("click", function () { setType("Expenses"); });
   $("btnInvestment").addEventListener("click", function () { setType("Investment"); });
 
-  function requireFile() {
+  // errEl: where to show the message (defaults to the Add form; false = toast only); verb: "adding" | "changing" | "deleting"
+  function requireFile(errEl, verb) {
     if (fileReady) return true;
     var msg = !FSA ? "This browser can't save to a file. Open this page in Chrome or Edge on a computer."
-      : fileHandle ? "Please reconnect " + fileHandle.name + " before adding entries."
+      : fileHandle ? "Please reconnect " + fileHandle.name + " before " + (verb || "adding") + " entries."
       : "Please select a file to save to first.";
-    var err = $("formError"); err.textContent = msg; err.classList.add("show");
+    if (errEl !== false) { var err = errEl || $("formError"); err.textContent = msg; err.classList.add("show"); }
     toast(msg);
     if (fileHandle) $("btnReconnect").classList.remove("hide");
-    $("status").scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!errEl) $("status").scrollIntoView({ behavior: "smooth", block: "center" });
     return false;
+  }
+
+  /* ---------- validation shared by Add and Edit ---------- */
+  function readEntryForm(ids, errEl) {
+    var date = $(ids.date).value, amount = parseFloat($(ids.amount).value);
+    var category = $(ids.category).value;
+    var description = $(ids.description).value.trim();
+    var msg = !date ? "Pick a date."
+      : !(amount > 0) ? "Enter an amount greater than zero."
+      : !category ? "Pick a category."
+      : !description ? "Enter a description." : "";
+    if (msg) { errEl.textContent = msg; errEl.classList.add("show"); return null; }
+    errEl.classList.remove("show");
+    return { date: date, category: category, description: description, amount: Math.abs(amount) };
   }
 
   $("btnAdd").addEventListener("click", function () {
     if (!requireFile()) return;
-    var err = $("formError");
-    var date = $("date").value, amount = parseFloat($("amount").value);
-    var category = $("category").value;
-    var description = $("description").value.trim();
-    if (!date) { err.textContent = "Pick a date."; err.classList.add("show"); return; }
-    if (!(amount > 0)) { err.textContent = "Enter an amount greater than zero."; err.classList.add("show"); return; }
-    if (!category) { err.textContent = "Pick a category."; err.classList.add("show"); return; }
-    if (!description) { err.textContent = "Enter a description."; err.classList.add("show"); return; }
-    err.classList.remove("show");
+    var v = readEntryForm({ date: "date", amount: "amount", category: "category", description: "description" }, $("formError"));
+    if (!v) return;
     entries.push({
-      id: "e" + (++seq) + "_" + Date.now(), date: date, category: category,
-      description: description, type: currentType, amount: Math.abs(amount)
+      id: "e" + (++seq) + "_" + Date.now(), date: v.date, category: v.category,
+      description: v.description, type: currentType, amount: v.amount
     });
     $("amount").value = ""; $("description").value = "";
     render(); persist();
     toast(currentType === "Income" ? "Income added" : currentType === "Investment" ? "Investment added" : "Expense added");
   });
+
+  /* =========================================================
+     Edit / delete an entry (from the Details table)
+     ========================================================= */
+  var editDialog = $("editDialog");
+  var editingId = null, editType = "Expenses";
+
+  function setEditType(t) {
+    editType = t; editDialog.dataset.type = t;
+    editDialog.querySelectorAll(".seg button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.type === t)); });
+  }
+  editDialog.querySelectorAll(".seg button").forEach(function (b) {
+    b.addEventListener("click", function () { setEditType(b.dataset.type); });
+  });
+
+  function findEntry(id) { for (var i = 0; i < entries.length; i++) if (entries[i].id === id) return i; return -1; }
+
+  function openEdit(id) {
+    var i = findEntry(id);
+    if (i < 0) { toast("That entry is no longer here."); return; }
+    var e = entries[i];
+    editingId = id;
+    setEditType(e.type);
+    $("editDate").value = e.date;
+    $("editAmount").value = String(e.amount);
+    // rebuild the category list so a category imported from CSV that isn't in CATEGORIES is still selectable
+    var sel = $("editCategory"); sel.innerHTML = "";
+    var cats = CATEGORIES.indexOf(e.category) === -1 ? CATEGORIES.concat([e.category]) : CATEGORIES;
+    cats.forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c; sel.appendChild(o); });
+    sel.value = e.category;
+    $("editDescription").value = e.description || "";
+    $("editError").classList.remove("show");
+    if (typeof editDialog.showModal === "function") editDialog.showModal(); else editDialog.setAttribute("open", "");
+    // desktop: jump straight into the amount; touch: don't pop the keyboard
+    if (window.matchMedia("(hover: hover)").matches) $("editAmount").focus(); else $("btnEditSave").focus();
+  }
+  function closeEdit() {
+    editingId = null;
+    if (editDialog.open) editDialog.close();
+  }
+  // refresh the page we're on so the change is visible right away, without jumping back to page 1 of the table
+  function afterEntryChange() {
+    render(); persist();
+    if (filterPanels[currentPage]) filterPanels[currentPage].updateSummary(true);
+  }
+
+  $("editForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (editingId === null) return;
+    if (!requireFile($("editError"), "changing")) return;
+    var v = readEntryForm({ date: "editDate", amount: "editAmount", category: "editCategory", description: "editDescription" }, $("editError"));
+    if (!v) return;
+    var i = findEntry(editingId);
+    if (i < 0) { closeEdit(); toast("That entry is no longer here."); return; }
+    var e = entries[i];
+    e.date = v.date; e.category = v.category; e.description = v.description; e.type = editType; e.amount = v.amount;
+    closeEdit();
+    afterEntryChange();
+    toast("Entry updated");
+  });
+
+  $("btnEditDelete").addEventListener("click", function () {
+    if (editingId === null) return;
+    if (!requireFile($("editError"), "deleting")) return;
+    var i = findEntry(editingId);
+    if (i < 0) { closeEdit(); return; }
+    var e = entries[i];
+    if (!window.confirm("Delete this entry?\n\n" + e.date + " · " + e.category + " · " + (e.description || "") + " · " + money(e.amount))) return;
+    entries.splice(i, 1);
+    closeEdit();
+    afterEntryChange();
+    toast("Entry deleted");
+  });
+
+  $("btnEditClose").addEventListener("click", closeEdit);
+  editDialog.addEventListener("cancel", function () { editingId = null; });   // Escape key
+  editDialog.addEventListener("click", function (ev) { if (ev.target === editDialog) closeEdit(); });   // tap on the backdrop
+
+  /* =========================================================
+     Group edit / delete (rows ticked in the Details table)
+     ========================================================= */
+  var groupDialog = $("groupDialog");
+  var groupIds = [], groupDone = null;   // groupDone: caller's cleanup (clears the table selection) once changes are applied
+
+  function existingIds(ids) { return ids.filter(function (id) { return findEntry(id) >= 0; }); }
+  function plural(n, word) { return n + " " + (n === 1 ? word : word.replace(/y$/, "ie") + "s"); }
+
+  function openGroupEdit(ids, onDone) {
+    ids = existingIds(ids);
+    if (!ids.length) { toast("Nothing selected."); return; }
+    groupIds = ids; groupDone = onDone || null;
+    var label = plural(ids.length, "entry");
+    $("groupTitle").textContent = "Edit " + label;
+    $("btnGroupSave").textContent = "Apply to " + label;
+    $("btnGroupDelete").textContent = "Delete " + label;
+    $("groupType").value = ""; $("groupDate").value = ""; $("groupAmount").value = ""; $("groupDescription").value = "";
+    var sel = $("groupCategory"); sel.innerHTML = "";
+    [""].concat(CATEGORIES).forEach(function (c) { var o = document.createElement("option"); o.value = c; o.textContent = c || "Keep as is"; sel.appendChild(o); });
+    sel.value = "";
+    $("groupError").classList.remove("show");
+    if (typeof groupDialog.showModal === "function") groupDialog.showModal(); else groupDialog.setAttribute("open", "");
+    $("groupType").focus();
+  }
+  function closeGroup() {
+    groupIds = []; groupDone = null;
+    if (groupDialog.open) groupDialog.close();
+  }
+
+  function deleteEntries(ids, errEl, onDone) {
+    ids = existingIds(ids);
+    if (!ids.length) return;
+    if (!requireFile(errEl, "deleting")) return;
+    if (!window.confirm("Delete " + plural(ids.length, "entry") + "? This can't be undone.")) return;
+    var gone = {}; ids.forEach(function (id) { gone[id] = true; });
+    entries = entries.filter(function (e) { return !gone[e.id]; });
+    if (onDone) onDone();
+    afterEntryChange();
+    toast(plural(ids.length, "entry") + " deleted");
+  }
+
+  $("groupForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!groupIds.length) return;
+    var err = $("groupError");
+    function fail(msg) { err.textContent = msg; err.classList.add("show"); }
+    if (!requireFile(err, "changing")) return;
+
+    // only the fields the user filled in are applied
+    var changes = {};
+    if ($("groupType").value) changes.type = $("groupType").value;
+    if ($("groupDate").value) changes.date = $("groupDate").value;
+    var amtRaw = $("groupAmount").value.trim();
+    if (amtRaw) {
+      var amt = parseFloat(amtRaw);
+      if (!(amt > 0)) { fail("Enter an amount greater than zero, or leave it blank to keep each entry's amount."); return; }
+      changes.amount = Math.abs(amt);
+    }
+    if ($("groupCategory").value) changes.category = $("groupCategory").value;
+    var desc = $("groupDescription").value.trim();
+    if (desc) changes.description = desc;
+    var keys = Object.keys(changes);
+    if (!keys.length) { fail("Fill in at least one field to change."); return; }
+    err.classList.remove("show");
+
+    var n = 0;
+    groupIds.forEach(function (id) {
+      var i = findEntry(id);
+      if (i < 0) return;
+      keys.forEach(function (k) { entries[i][k] = changes[k]; });
+      n++;
+    });
+    var done = groupDone;
+    closeGroup();
+    if (done) done();
+    afterEntryChange();
+    toast(plural(n, "entry") + " updated");
+  });
+
+  $("btnGroupDelete").addEventListener("click", function () {
+    var done = groupDone;
+    deleteEntries(groupIds, $("groupError"), function () { closeGroup(); if (done) done(); });
+  });
+  $("btnGroupClose").addEventListener("click", closeGroup);
+  groupDialog.addEventListener("cancel", function () { groupIds = []; groupDone = null; });
+  groupDialog.addEventListener("click", function (ev) { if (ev.target === groupDialog) closeGroup(); });
 
   /* --- local file buttons --- */
   $("btnOpenFile").addEventListener("click", function () {
