@@ -155,12 +155,19 @@
   .chart-legend-row .val{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
   .chart-empty{color:var(--muted);text-align:center;padding:20px 12px;width:100%;margin:0}
 
-  .barchart{display:flex;flex-direction:column;gap:10px}
+  .barchart{display:flex;flex-direction:column;gap:12px}
+  .bc-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.75rem;color:var(--muted)}
+  .bc-legend-item{display:inline-flex;align-items:center;gap:6px}
+  .bc-legend .sw{width:10px;height:10px;border-radius:3px}
+  .barchart-group{display:flex;align-items:center;gap:8px}
+  .barchart-group .bc-label{flex:0 0 36px;font-size:.75rem;font-weight:600;color:var(--text);text-align:right;white-space:nowrap}
+  .bc-bars{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
   .barchart-row{display:flex;align-items:center;gap:8px}
-  .barchart-row .bc-label{flex:0 0 76px;font-size:.75rem;color:var(--muted);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .barchart-row .bc-track{flex:1;background:#EEF1EC;border-radius:6px;height:20px;overflow:hidden}
-  .barchart-row .bc-fill{height:100%;min-width:2px;background:var(--out);border-radius:6px}
-  .barchart-row .bc-val{flex:0 0 auto;min-width:76px;font-size:.8125rem;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+  .barchart-row .bc-track{flex:1;background:#EEF1EC;border-radius:4px;height:12px;overflow:hidden}
+  .barchart-row .bc-fill{height:100%;min-width:2px;border-radius:4px}
+  .barchart-row .bc-val{flex:0 0 auto;min-width:88px;font-size:.75rem;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+  .is-in.bc-fill,.is-in.sw{background:var(--in)}  .is-inv.bc-fill,.is-inv.sw{background:var(--inv)}  .is-out.bc-fill,.is-out.sw{background:var(--out)}
+  .bc-val.is-in{color:var(--in)}  .bc-val.is-inv{color:var(--inv)}  .bc-val.is-out{color:var(--out)}
 
   .table-wrap{overflow-x:auto}
   .details-table{width:100%;min-width:420px;border-collapse:collapse;font-size:.8125rem}
@@ -396,7 +403,7 @@
     </section>
 
     <section class="card">
-      <h2>Expenses by Month</h2>
+      <h2>By Month</h2>
       <div id="monthBarChart3" class="barchart"></div>
     </section>
 
@@ -819,6 +826,7 @@
     { value: "10", label: "October" }, { value: "11", label: "November" }, { value: "12", label: "December" }
   ];
   var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
+  var BAR_SERIES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expenses" }];
   var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#6C4FD6", "#0E8FA3", "#C2622D", "#5B6470"];
 
   function typeTotals(matchFn) {
@@ -933,30 +941,53 @@
       if (!wrap) return;
 
       var totals = {};
-      list.forEach(function (e) { if (e.type === "Expenses") { var mo = e.date.slice(5, 7); totals[mo] = (totals[mo] || 0) + e.amount; } });
+      list.forEach(function (e) {
+        var mo = e.date.slice(5, 7);
+        if (!totals[mo]) totals[mo] = { Income: 0, Investment: 0, Expenses: 0 };
+        if (totals[mo].hasOwnProperty(e.type)) totals[mo][e.type] += e.amount;
+      });
       var months = Object.keys(totals).sort();
 
       wrap.innerHTML = "";
       if (!months.length) {
-        var empty = document.createElement("p"); empty.className = "chart-empty"; empty.textContent = "No expenses to chart";
+        var empty = document.createElement("p"); empty.className = "chart-empty"; empty.textContent = "Nothing to chart";
         wrap.appendChild(empty);
         return;
       }
 
-      var max = months.reduce(function (m, k) { return Math.max(m, totals[k]); }, 0);
+      var max = 0;
       months.forEach(function (mo) {
-        var label = MONTHS[parseInt(mo, 10) - 1].label.slice(0, 3);
+        BAR_SERIES.forEach(function (s) { max = Math.max(max, totals[mo][s.type]); });
+      });
 
-        var row = document.createElement("div"); row.className = "barchart-row";
-        var lbl = document.createElement("span"); lbl.className = "bc-label"; lbl.textContent = label;
-        var track = document.createElement("div"); track.className = "bc-track";
-        var fill = document.createElement("div"); fill.className = "bc-fill";
-        fill.style.width = (max ? (totals[mo] / max * 100) : 0) + "%";
-        track.appendChild(fill);
-        var val = document.createElement("span"); val.className = "bc-val"; val.textContent = money(totals[mo]);
+      var legend = document.createElement("div"); legend.className = "bc-legend";
+      BAR_SERIES.forEach(function (s) {
+        var item = document.createElement("span"); item.className = "bc-legend-item";
+        var sw = document.createElement("span"); sw.className = "sw is-" + s.cls;
+        item.appendChild(sw); item.appendChild(document.createTextNode(s.label));
+        legend.appendChild(item);
+      });
+      wrap.appendChild(legend);
 
-        row.appendChild(lbl); row.appendChild(track); row.appendChild(val);
-        wrap.appendChild(row);
+      months.forEach(function (mo) {
+        var group = document.createElement("div"); group.className = "barchart-group";
+        var lbl = document.createElement("span"); lbl.className = "bc-label"; lbl.textContent = MONTHS[parseInt(mo, 10) - 1].label.slice(0, 3);
+        var bars = document.createElement("div"); bars.className = "bc-bars";
+        BAR_SERIES.forEach(function (s) {
+          var amount = totals[mo][s.type];
+          var row = document.createElement("div"); row.className = "barchart-row";
+          var track = document.createElement("div"); track.className = "bc-track";
+          var fill = document.createElement("div"); fill.className = "bc-fill is-" + s.cls;
+          fill.style.width = (max ? (amount / max * 100) : 0) + "%";
+          if (!amount) fill.style.minWidth = "0";
+          fill.title = s.label + ": " + money(amount);
+          track.appendChild(fill);
+          var val = document.createElement("span"); val.className = "bc-val is-" + s.cls; val.textContent = money(amount);
+          row.appendChild(track); row.appendChild(val);
+          bars.appendChild(row);
+        });
+        group.appendChild(lbl); group.appendChild(bars);
+        wrap.appendChild(group);
       });
     }
 
