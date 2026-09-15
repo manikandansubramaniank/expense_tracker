@@ -55,6 +55,14 @@
     border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(18,38,43,.15);
     max-height:240px;overflow-y:auto;padding:6px}
   .msel-panel.hide{display:none}
+  .msel-head{position:sticky;top:0;z-index:1;background:var(--card);padding-top:6px;margin-top:-6px}
+  .msel-search{position:relative;padding:2px 2px 6px}
+  .msel-search input{min-height:38px;padding-left:34px;padding-right:34px}
+  .msel-search svg{position:absolute;left:12px;top:0;bottom:6px;margin:auto 0;width:16px;height:16px;color:var(--muted);pointer-events:none}
+  .msel-search .msel-x{position:absolute;right:6px;top:2px;bottom:6px;width:30px;border:0;background:transparent;
+    color:var(--muted);font:inherit;font-size:1.125rem;line-height:1;cursor:pointer;border-radius:6px}
+  .msel-search .msel-x.hide{display:none}
+  .msel-search input::-webkit-search-cancel-button,.msel-search input::-webkit-search-decoration{-webkit-appearance:none;display:none}
   .msel-actions{display:flex;gap:6px;padding:2px 2px 6px;border-bottom:1px solid var(--line);margin-bottom:4px}
   .msel-actions button{flex:1;min-height:32px;border:1px solid var(--line);border-radius:7px;background:var(--card);
     font:inherit;font-size:.75rem;font-weight:500;color:var(--muted);cursor:pointer}
@@ -212,6 +220,8 @@
           <option>Travel</option>
           <option>Entertainment</option>
           <option>Insurance</option>
+          <option>Medical</option>
+          <option>Shopping</option>
           <option>Investment</option>
           <option>Income</option>
           <option>Others</option>
@@ -477,7 +487,7 @@
 (function () {
   "use strict";
 
-  var CATEGORIES = ["Household", "Food and Groceries", "Travel", "Entertainment", "Insurance", "Investment", "Income", "Others"];
+  var CATEGORIES = ["Household", "Food and Groceries", "Travel", "Entertainment", "Insurance", "Medical", "Shopping", "Investment", "Income", "Others"];
   var K_MODE = "expenseTracker.mode";
 
   var entries = [];
@@ -667,8 +677,14 @@
     var options = [];
     var selected = {};
     var onChange = function () {};
+    var query = "";
+    var searchInput = null, clearSearchBtn = null, listEl = null;
 
     function count() { return Object.keys(selected).length; }
+
+    function matches(o) {
+      return !query || o.label.toLowerCase().indexOf(query) !== -1;
+    }
 
     function updateLabel() {
       var n = count();
@@ -684,17 +700,51 @@
 
     function renderPanel() {
       panel.innerHTML = "";
+      var head = document.createElement("div"); head.className = "msel-head";
+
+      var search = document.createElement("div"); search.className = "msel-search";
+      search.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+        '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+      searchInput = document.createElement("input");
+      searchInput.type = "search"; searchInput.placeholder = "Search " + labelAll.replace(/^All /, "");
+      searchInput.setAttribute("aria-label", searchInput.placeholder);
+      searchInput.autocomplete = "off"; searchInput.value = query;
+      searchInput.addEventListener("input", function () { setQuery(searchInput.value); });
+      searchInput.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") { e.preventDefault(); if (query) setQuery(""); else close(); }
+      });
+      clearSearchBtn = document.createElement("button"); clearSearchBtn.type = "button"; clearSearchBtn.className = "msel-x";
+      clearSearchBtn.textContent = "×"; clearSearchBtn.setAttribute("aria-label", "Clear search");
+      clearSearchBtn.addEventListener("click", function () { setQuery(""); searchInput.focus(); });
+      search.appendChild(searchInput); search.appendChild(clearSearchBtn); head.appendChild(search);
+
       var actions = document.createElement("div"); actions.className = "msel-actions";
       var clearBtn = document.createElement("button"); clearBtn.type = "button"; clearBtn.textContent = "Clear (show all)";
       clearBtn.addEventListener("click", function () { selected = {}; refreshChecks(); updateLabel(); onChange(); });
-      actions.appendChild(clearBtn); panel.appendChild(actions);
+      actions.appendChild(clearBtn); head.appendChild(actions);
+      panel.appendChild(head);
 
-      if (!options.length) {
-        var empty = document.createElement("div"); empty.className = "msel-empty"; empty.textContent = "Nothing to filter";
-        panel.appendChild(empty);
+      listEl = document.createElement("div"); panel.appendChild(listEl);
+      renderList();
+    }
+
+    function setQuery(q) {
+      query = q.trim().toLowerCase();
+      if (searchInput && searchInput.value !== q) searchInput.value = q;
+      renderList();
+    }
+
+    function renderList() {
+      listEl.innerHTML = "";
+      clearSearchBtn.classList.toggle("hide", !query);
+      var shown = options.filter(matches);
+      if (!shown.length) {
+        var empty = document.createElement("div"); empty.className = "msel-empty";
+        empty.textContent = options.length ? "No matches" : "Nothing to filter";
+        listEl.appendChild(empty);
         return;
       }
-      options.forEach(function (o) {
+      shown.forEach(function (o) {
         var lab = document.createElement("label"); lab.className = "msel-opt";
         var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = o.value; cb.checked = !!selected[o.value];
         cb.addEventListener("change", function () {
@@ -707,7 +757,7 @@
           var amt = document.createElement("span"); amt.className = "msel-amt"; amt.textContent = money(o.amount);
           lab.appendChild(amt);
         }
-        panel.appendChild(lab);
+        listEl.appendChild(lab);
       });
     }
 
@@ -728,10 +778,12 @@
       if (openMultiSelect && openMultiSelect !== api) openMultiSelect.close();
       panel.classList.remove("hide"); btn.setAttribute("aria-expanded", "true");
       openMultiSelect = api;
+      if (searchInput && window.matchMedia("(hover: hover)").matches) searchInput.focus();
     }
     function close() {
       panel.classList.add("hide"); btn.setAttribute("aria-expanded", "false");
       if (openMultiSelect === api) openMultiSelect = null;
+      if (query) setQuery("");
     }
 
     btn.addEventListener("click", function (e) {
