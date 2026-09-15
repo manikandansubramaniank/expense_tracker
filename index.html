@@ -503,8 +503,9 @@
 
   var entries = [];
   var currentType = "Expenses";
-  var mode = "browser";              // browser | file
+  var mode = "none";                 // none | file  (entries are only ever written to the CSV file)
   var fileHandle = null;             // local File System Access handle
+  var fileReady = false;             // handle present and readwrite permission granted
   var saveTimer = null, seq = 0;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -616,7 +617,7 @@
       saveTimer = setTimeout(function () { writeFile(csv); }, 300);
       return;
     }
-    setStatus("Not saved yet. Select a file on this device, or download a copy before you close this.", "warn");
+    setStatus("Not saved. Select a file on this device to save entries, or download a copy before you close this.", "warn");
   }
 
   function writeFile(csv) {
@@ -624,15 +625,18 @@
     var h = fileHandle;
     h.queryPermission({ mode: "readwrite" }).then(function (p) {
       if (p !== "granted") { needsReconnect(); return; }
+      fileReady = true;
       return h.createWritable().then(function (w) { return w.write(csv).then(function () { return w.close(); }); })
         .then(function () { setStatus("Saved to <b>" + esc(h.name) + "</b> on this device", "ok"); });
     }).catch(function () {
+      fileReady = false;
       setStatus("Couldn't write to <b>" + esc(h.name) + "</b>. Reconnect it.", "warn");
       $("btnReconnect").classList.remove("hide");
       $("moreOptions").open = true;
     });
   }
   function needsReconnect() {
+    fileReady = false;
     setStatus("Reconnect <b>" + esc(fileHandle.name) + "</b> to keep saving to it.", "warn");
     $("btnReconnect").classList.remove("hide");
     $("moreOptions").open = true;
@@ -1125,7 +1129,20 @@
   $("btnExpense").addEventListener("click", function () { setType("Expenses"); });
   $("btnInvestment").addEventListener("click", function () { setType("Investment"); });
 
+  function requireFile() {
+    if (fileReady) return true;
+    var msg = !FSA ? "This browser can't save to a file. Open this page in Chrome or Edge on a computer."
+      : fileHandle ? "Please reconnect " + fileHandle.name + " before adding entries."
+      : "Please select a file to save to first.";
+    var err = $("formError"); err.textContent = msg; err.classList.add("show");
+    toast(msg);
+    if (fileHandle) $("btnReconnect").classList.remove("hide");
+    $("status").scrollIntoView({ behavior: "smooth", block: "center" });
+    return false;
+  }
+
   $("btnAdd").addEventListener("click", function () {
+    if (!requireFile()) return;
     var err = $("formError");
     var date = $("date").value, amount = parseFloat($("amount").value);
     var category = $("category").value;
@@ -1148,7 +1165,7 @@
   $("btnOpenFile").addEventListener("click", function () {
     window.showOpenFilePicker({ multiple: false, types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
       .then(function (res) {
-        fileHandle = res[0]; mode = "file"; ls(K_MODE, "file"); idbPut("csvHandle", fileHandle);
+        fileHandle = res[0]; mode = "file"; fileReady = true; ls(K_MODE, "file"); idbPut("csvHandle", fileHandle);
         $("btnReconnect").classList.add("hide");
         return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
           var n = importCSV(t, true, true);
@@ -1161,7 +1178,7 @@
   $("btnNewFile").addEventListener("click", function () {
     window.showSaveFilePicker({ suggestedName: "expenses.csv", types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
       .then(function (h) {
-        fileHandle = h; mode = "file"; ls(K_MODE, "file"); idbPut("csvHandle", h);
+        fileHandle = h; mode = "file"; fileReady = true; ls(K_MODE, "file"); idbPut("csvHandle", h);
         writeFile(buildCSV(sortedAll())); toast("Now saving to " + h.name);
       }).catch(function (e) { if (e && e.name === "AbortError") return; toast("Couldn't create that file."); });
   });
@@ -1170,6 +1187,7 @@
     if (!fileHandle) return;
     fileHandle.requestPermission({ mode: "readwrite" }).then(function (p) {
       if (p !== "granted") { toast("Permission not given."); return; }
+      fileReady = true;
       $("btnReconnect").classList.add("hide");
       return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
         importCSV(t, true, true); persist();
@@ -1196,8 +1214,8 @@
 
   render();
 
-  var savedMode = ls(K_MODE) || "browser";
-  var noFileMsg = "Nothing is being saved. Select a file on this device, or load a CSV to get started.";
+  var savedMode = ls(K_MODE) || "none";
+  var noFileMsg = "No file selected. Select a file on this device before adding entries.";
 
   if (savedMode === "file" && FSA) {
     idbGet("csvHandle").then(function (h) {
@@ -1206,6 +1224,7 @@
       return h.queryPermission({ mode: "readwrite" }).then(function (p) {
         mode = "file";
         if (p === "granted") {
+          fileReady = true;
           return h.getFile().then(function (f) { return f.text(); }).then(function (t) {
             var n = importCSV(t, true, true);
             setStatus("Using <b>" + esc(h.name) + "</b> on this device — " + n + " rows", "ok");
