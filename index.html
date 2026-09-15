@@ -67,9 +67,13 @@
   .msel-actions button{flex:1;min-height:32px;border:1px solid var(--line);border-radius:7px;background:var(--card);
     font:inherit;font-size:.75rem;font-weight:500;color:var(--muted);cursor:pointer}
   .msel-actions button:active{background:#EEF1EC}
-  .msel-opt{display:flex;align-items:center;gap:16px;padding:11px 10px;border-radius:8px;cursor:pointer;font-size:.9375rem;min-height:40px}
+  .msel-panel .msel-opt{display:flex;color:var(--text);margin:0;align-items:center;gap:10px;padding:11px 10px;border-radius:8px;cursor:pointer;font-size:.9375rem;min-height:40px}
   .msel-opt .msel-name{flex:1;min-width:0;margin-left:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:18px}
-  .msel-opt .msel-amt{flex:0 0 auto;margin-left:auto;padding-left:8px;text-align:right;color:var(--muted);font-size:.8125rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .msel-opt .msel-amts{flex:0 0 auto;margin-left:auto;padding-left:6px;display:flex;gap:6px}
+  .msel-opt .msel-amt{min-width:58px;text-align:right;font-size:.6875rem;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .msel-opt .msel-amt.is-out{color:var(--out)}
+  .msel-opt .msel-amt.is-in{color:var(--in)}
+  .msel-opt .msel-amt.is-inv{color:var(--inv)}
   .msel-opt:active{background:#EEF1EC}
   .msel-opt input{appearance:auto;-webkit-appearance:checkbox;width:18px;min-width:18px;min-height:18px;height:18px;
     flex:0 0 18px;padding:0;margin:0;border:none;background:none;border-radius:0;accent-color:var(--focus);cursor:pointer}
@@ -322,8 +326,8 @@
     <section class="card">
       <h2>Summary</h2>
       <div class="summary-row"><span>Total Income</span><b class="num v-in" id="sumIncome">₹0.00</b></div>
-      <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses">₹0.00</b></div>
       <div class="summary-row"><span>Total Investment</span><b class="num v-inv" id="sumInvestment">₹0.00</b></div>
+      <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses">₹0.00</b></div>
       <div class="summary-row cash"><span>Cash in Hand</span><b class="num" id="sumCash">₹0.00</b></div>
     </section>
 
@@ -753,9 +757,14 @@
         });
         var span = document.createElement("span"); span.className = "msel-name"; span.textContent = o.label;
         lab.appendChild(cb); lab.appendChild(span);
-        if (o.amount !== undefined) {
-          var amt = document.createElement("span"); amt.className = "msel-amt"; amt.textContent = money(o.amount);
-          lab.appendChild(amt);
+        if (o.amounts) {
+          var amts = document.createElement("span"); amts.className = "msel-amts";
+          [["Income", "in", "Income"], ["Investment", "inv", "Investment"], ["Expenses", "out", "Expense"]].forEach(function (t) {
+            var amt = document.createElement("span"); amt.className = "msel-amt is-" + t[1];
+            amt.textContent = money(o.amounts[t[0]]); amt.title = t[2];
+            amts.appendChild(amt);
+          });
+          lab.appendChild(amts);
         }
         listEl.appendChild(lab);
       });
@@ -812,8 +821,10 @@
   var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
   var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#6C4FD6", "#0E8FA3", "#C2622D", "#5B6470"];
 
-  function expenseTotal(matchFn) {
-    return entries.reduce(function (s, e) { return (e.type === "Expenses" && matchFn(e)) ? s + e.amount : s; }, 0);
+  function typeTotals(matchFn) {
+    var t = { Expenses: 0, Income: 0, Investment: 0 };
+    entries.forEach(function (e) { if (matchFn(e) && t.hasOwnProperty(e.type)) t[e.type] += e.amount; });
+    return t;
   }
 
   function FilterPanel(suffix) {
@@ -833,31 +844,31 @@
       });
       var yList = Object.keys(years).sort().reverse();
       msYear.setOptions(yList.map(function (y) {
-        return { value: y, label: y, amount: expenseTotal(function (e) { return e.date.slice(0, 4) === y; }) };
+        return { value: y, label: y, amounts: typeTotals(function (e) { return e.date.slice(0, 4) === y; }) };
       }));
 
       var descList = Object.keys(descriptions).sort(function (a, b) { return a.localeCompare(b); });
       msDescription.setOptions(descList.map(function (v) {
-        return { value: v, label: v, amount: expenseTotal(function (e) { return normDesc(e.description) === v; }) };
+        return { value: v, label: v, amounts: typeTotals(function (e) { return normDesc(e.description) === v; }) };
       }));
 
       msMonth.setOptions(MONTHS.map(function (mo) {
-        return { value: mo.value, label: mo.label, amount: expenseTotal(function (e) { return e.date.split("-")[1] === mo.value; }) };
+        return { value: mo.value, label: mo.label, amounts: typeTotals(function (e) { return e.date.split("-")[1] === mo.value; }) };
       }));
 
       var dayOptions = [];
       for (var dd = 1; dd <= 31; dd++) {
         var dv = pad(dd);
-        dayOptions.push({ value: dv, label: String(dd), amount: expenseTotal(function (e) { return e.date.split("-")[2] === dv; }) });
+        dayOptions.push({ value: dv, label: String(dd), amounts: typeTotals(function (e) { return e.date.split("-")[2] === dv; }) });
       }
       msDay.setOptions(dayOptions);
 
       msCategory.setOptions(CATEGORIES.map(function (c) {
-        return { value: c, label: c, amount: expenseTotal(function (e) { return e.category === c; }) };
+        return { value: c, label: c, amounts: typeTotals(function (e) { return e.category === c; }) };
       }));
 
       msType.setOptions(TYPES.map(function (t) {
-        return { value: t.value, label: t.label, amount: expenseTotal(function (e) { return e.type === t.value; }) };
+        return { value: t.value, label: t.label, amounts: typeTotals(function (e) { return e.type === t.value; }) };
       }));
     }
 
