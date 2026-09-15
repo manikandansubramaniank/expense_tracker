@@ -786,6 +786,7 @@
     }
 
     function setOptions(list) {
+      if (JSON.stringify(list) === JSON.stringify(options)) return;
       var keep = {};
       list.forEach(function (o) { if (selected[o.value]) keep[o.value] = true; });
       selected = keep;
@@ -833,11 +834,6 @@
   var BAR_SERIES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expenses" }];
   var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#6C4FD6", "#0E8FA3", "#C2622D", "#5B6470"];
 
-  function typeTotals(matchFn) {
-    var t = { Expenses: 0, Income: 0, Investment: 0 };
-    entries.forEach(function (e) { if (matchFn(e) && t.hasOwnProperty(e.type)) t[e.type] += e.amount; });
-    return t;
-  }
 
   function FilterPanel(suffix) {
     var msYear = MultiSelect("fYear" + suffix, "All years");
@@ -847,6 +843,25 @@
     var msDescription = MultiSelect("fDescription" + suffix, "All descriptions");
     var msType = MultiSelect("fType" + suffix, "All types");
 
+    /* Each dropdown lists only the values that occur in the entries matching the OTHER
+       active filters (plus anything already ticked), with amounts summed over that subset. */
+    function buildOptions(ms, candidates, keyFn) {
+      var pool = filteredEntries(ms), sel = ms.getSelected();
+      var sums = {};
+      pool.forEach(function (e) {
+        var k = keyFn(e);
+        if (!sums[k]) sums[k] = { Income: 0, Investment: 0, Expenses: 0 };
+        if (sums[k].hasOwnProperty(e.type)) sums[k][e.type] += e.amount;
+      });
+      var list = [];
+      candidates.forEach(function (o) {
+        if (sums[o.value] || sel.indexOf(o.value) !== -1) {
+          list.push({ value: o.value, label: o.label, amounts: sums[o.value] || { Income: 0, Investment: 0, Expenses: 0 } });
+        }
+      });
+      ms.setOptions(list);
+    }
+
     function refreshOptions() {
       var years = {}, descriptions = {};
       entries.forEach(function (e) {
@@ -854,39 +869,23 @@
         var dKey = normDesc(e.description);
         if (dKey) descriptions[dKey] = true;
       });
-      var yList = Object.keys(years).sort().reverse();
-      msYear.setOptions(yList.map(function (y) {
-        return { value: y, label: y, amounts: typeTotals(function (e) { return e.date.slice(0, 4) === y; }) };
-      }));
+      var yList = Object.keys(years).sort().reverse().map(function (y) { return { value: y, label: y }; });
+      var descList = Object.keys(descriptions).sort(function (a, b) { return a.localeCompare(b); }).map(function (v) { return { value: v, label: v }; });
+      var dayList = [];
+      for (var dd = 1; dd <= 31; dd++) dayList.push({ value: pad(dd), label: String(dd) });
 
-      var descList = Object.keys(descriptions).sort(function (a, b) { return a.localeCompare(b); });
-      msDescription.setOptions(descList.map(function (v) {
-        return { value: v, label: v, amounts: typeTotals(function (e) { return normDesc(e.description) === v; }) };
-      }));
-
-      msMonth.setOptions(MONTHS.map(function (mo) {
-        return { value: mo.value, label: mo.label, amounts: typeTotals(function (e) { return e.date.split("-")[1] === mo.value; }) };
-      }));
-
-      var dayOptions = [];
-      for (var dd = 1; dd <= 31; dd++) {
-        var dv = pad(dd);
-        dayOptions.push({ value: dv, label: String(dd), amounts: typeTotals(function (e) { return e.date.split("-")[2] === dv; }) });
-      }
-      msDay.setOptions(dayOptions);
-
-      msCategory.setOptions(CATEGORIES.map(function (c) {
-        return { value: c, label: c, amounts: typeTotals(function (e) { return e.category === c; }) };
-      }));
-
-      msType.setOptions(TYPES.map(function (t) {
-        return { value: t.value, label: t.label, amounts: typeTotals(function (e) { return e.type === t.value; }) };
-      }));
+      buildOptions(msYear, yList, function (e) { return e.date.slice(0, 4); });
+      buildOptions(msMonth, MONTHS, function (e) { return e.date.slice(5, 7); });
+      buildOptions(msDay, dayList, function (e) { return e.date.slice(8, 10); });
+      buildOptions(msCategory, CATEGORIES.map(function (c) { return { value: c, label: c }; }), function (e) { return e.category; });
+      buildOptions(msDescription, descList, function (e) { return normDesc(e.description); });
+      buildOptions(msType, TYPES, function (e) { return e.type; });
     }
 
-    function filteredEntries() {
-      var y = msYear.getSelected(), m = msMonth.getSelected(), d = msDay.getSelected();
-      var c = msCategory.getSelected(), t = msType.getSelected(), desc = msDescription.getSelected();
+    function filteredEntries(exclude) {
+      var pick = function (ms) { return ms === exclude ? [] : ms.getSelected(); };
+      var y = pick(msYear), m = pick(msMonth), d = pick(msDay);
+      var c = pick(msCategory), t = pick(msType), desc = pick(msDescription);
       return entries.filter(function (e) {
         var p = e.date.split("-");
         if (y.length && y.indexOf(p[0]) === -1) return false;
@@ -1074,7 +1073,7 @@
     }
 
     [msYear, msMonth, msDay, msCategory, msDescription, msType].forEach(function (ms) {
-      ms.setOnChange(updateSummary);
+      ms.setOnChange(function () { refreshOptions(); updateSummary(); });
     });
 
     return { refreshOptions: refreshOptions, updateSummary: updateSummary };
