@@ -645,6 +645,8 @@
   function pad(x) { return String(x).padStart(2, "0"); }
   function normDesc(v) { return String(v || "").replace(/[^\S ]+/g, " ").trim().replace(/\s+/g, " ").toLowerCase(); }
   function todayISO() { var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  // "yyyy-mm-dd" (stored) -> "dd-mm-yyyy" (displayed)
+  function fmtDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "-" + p[1] + "-" + p[0] : iso; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
   function toast(msg) {
     var t = $("toast"); t.textContent = msg; t.classList.add("show");
@@ -1187,21 +1189,21 @@
           row.classList.toggle("is-selected", !!selectedIds[e.id]);
           var selTd = document.createElement("td"); selTd.className = "col-sel";
           var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!selectedIds[e.id];
-          cb.setAttribute("aria-label", "Select " + e.date + " " + (e.description || e.category));
+          cb.setAttribute("aria-label", "Select " + fmtDate(e.date) + " " + (e.description || e.category));
           cb.addEventListener("change", function () {
             if (cb.checked) selectedIds[e.id] = true; else delete selectedIds[e.id];
             row.classList.toggle("is-selected", cb.checked);
             renderSelBar(); syncSelAll(pageRows);
           });
           selTd.appendChild(cb); row.appendChild(selTd);
-          [e.date, e.category, e.description || "", e.type].forEach(function (v) {
+          [fmtDate(e.date), e.category, e.description || "", e.type].forEach(function (v) {
             var td = document.createElement("td"); td.textContent = v; row.appendChild(td);
           });
           var amtTd = document.createElement("td"); amtTd.className = "num col-amt " + amtClass; amtTd.textContent = money(e.amount);
           row.appendChild(amtTd);
           var actTd = document.createElement("td"); actTd.className = "col-act";
           var editBtn = document.createElement("button"); editBtn.type = "button"; editBtn.className = "row-edit"; editBtn.textContent = "Edit";
-          editBtn.setAttribute("aria-label", "Edit " + e.date + " " + (e.description || e.category) + " " + money(e.amount));
+          editBtn.setAttribute("aria-label", "Edit " + fmtDate(e.date) + " " + (e.description || e.category) + " " + money(e.amount));
           editBtn.addEventListener("click", function () { openEdit(e.id); });
           actTd.appendChild(editBtn); row.appendChild(actTd);
           tbody.appendChild(row);
@@ -1462,7 +1464,7 @@
     var i = findEntry(editingId);
     if (i < 0) { closeEdit(); return; }
     var e = entries[i];
-    if (!window.confirm("Delete this entry?\n\n" + e.date + " · " + e.category + " · " + (e.description || "") + " · " + money(e.amount))) return;
+    if (!window.confirm("Delete this entry?\n\n" + fmtDate(e.date) + " · " + e.category + " · " + (e.description || "") + " · " + money(e.amount))) return;
     entries.splice(i, 1);
     closeEdit();
     afterEntryChange();
