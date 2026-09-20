@@ -107,18 +107,8 @@
   .status[data-tone="warn"] b{color:var(--warn)}
   .file-row{display:flex;gap:10px}
   .file-row > *{flex:1}
-  .filelabel{display:flex;align-items:center;justify-content:center;min-height:var(--tap);border:1px solid var(--line);
-    border-radius:10px;background:var(--card);font-weight:500;cursor:pointer;text-align:center;padding:0 8px}
-  .filelabel input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
   .linkout{display:block;width:100%;margin-top:10px;background:none;border:0;padding:8px 0;font:inherit;font-size:.875rem;color:var(--focus);text-decoration:underline;cursor:pointer}
   .hint{margin:10px 0 0;font-size:.8125rem;color:var(--muted)}
-  .hint code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.75rem;background:#EEF1EC;padding:2px 5px;border-radius:5px;word-break:break-all}
-  details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
-  summary{cursor:pointer;font-size:.875rem;color:var(--muted);padding:4px 0;list-style:none}
-  summary::-webkit-details-marker{display:none}
-  summary::before{content:"＋ ";color:var(--focus)}
-  details[open] summary::before{content:"− "}
-  details .file-row{margin-top:10px}
 
   .picklist{margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .picklist button{display:block;width:100%;text-align:left;background:var(--card);border:0;border-bottom:1px solid var(--line);
@@ -294,19 +284,6 @@
         </div>
         <button class="linkout hide" id="btnReconnect">Reconnect that file</button>
       </div>
-
-      <details id="moreOptions">
-        <summary>Other ways to save</summary>
-
-        <div class="file-row" id="basicControls">
-          <label class="filelabel" for="csvFile">Load a CSV
-            <input type="file" id="csvFile" accept=".csv,text/csv">
-          </label>
-          <button class="btn btn-ghost" id="btnExport">Download a copy</button>
-        </div>
-
-        <p class="hint">Columns: <code>date,category,description,type,amount</code></p>
-      </details>
     </section>
 
   </div>
@@ -617,6 +594,18 @@
   </form>
 </dialog>
 
+<dialog id="connectDialog" class="edit-dialog" aria-labelledby="connectTitle">
+  <form method="dialog">
+    <div class="card-head"><h2 id="connectTitle">Connect your file</h2><button type="button" class="btn-clear" id="btnConnectClose">Not now</button></div>
+    <p class="hint" id="connectHint">Entries are saved to a CSV file on this device. Select the file to use.</p>
+    <div class="edit-actions">
+      <button type="button" class="btn hide" id="btnConnectReconnect">Reconnect</button>
+      <button type="button" class="btn" id="btnConnectOpen">Select file from device</button>
+      <button type="button" class="btn btn-ghost" id="btnConnectNew">New file on this device</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -744,7 +733,7 @@
       saveTimer = setTimeout(function () { writeFile(csv); }, 300);
       return;
     }
-    setStatus("Not saved. Select a file on this device to save entries, or download a copy before you close this.", "warn");
+    setStatus("Not saved. Select a file on this device to save entries.", "warn");
   }
 
   function writeFile(csv) {
@@ -759,14 +748,12 @@
       fileReady = false;
       setStatus("Couldn't write to <b>" + esc(h.name) + "</b>. Reconnect it.", "warn");
       $("btnReconnect").classList.remove("hide");
-      $("moreOptions").open = true;
     });
   }
   function needsReconnect() {
     fileReady = false;
     setStatus("Reconnect <b>" + esc(fileHandle.name) + "</b> to keep saving to it.", "warn");
     $("btnReconnect").classList.remove("hide");
-    $("moreOptions").open = true;
   }
 
   /* ---------- remembered local file handle ---------- */
@@ -1334,16 +1321,6 @@
     b.addEventListener("click", function () { showPage(b.dataset.page); });
   });
 
-  function downloadCSV() {
-    var blob = new Blob([buildCSV(sortedAll())], { type: "text/csv;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url; a.download = "expenses-" + todayISO() + ".csv";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    toast("CSV downloaded");
-  }
-
   /* =========================================================
      Events
      ========================================================= */
@@ -1563,50 +1540,74 @@
   groupDialog.addEventListener("cancel", function () { groupIds = []; groupDone = null; });
   groupDialog.addEventListener("click", function (ev) { if (ev.target === groupDialog) closeGroup(); });
 
-  /* --- local file buttons --- */
-  $("btnOpenFile").addEventListener("click", function () {
-    window.showOpenFilePicker({ multiple: false, types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
+  /* --- local file actions (shared by the card buttons and the connect popup) --- */
+  var connectDialog = $("connectDialog");
+  var CSV_TYPES = [{ description: "CSV file", accept: { "text/csv": [".csv"] } }];
+
+  function closeConnect() { if (connectDialog.open) connectDialog.close(); }
+
+  // Pickers and permission prompts only work from a click, so the popup shows on load and one tap opens the native prompt.
+  function openConnect() {
+    if (!FSA || connectDialog.open) return;
+    var remembered = !!fileHandle;
+    $("btnConnectReconnect").classList.toggle("hide", !remembered);
+    $("btnConnectReconnect").textContent = remembered ? "Reconnect " + fileHandle.name : "Reconnect";
+    $("btnConnectOpen").classList.toggle("btn-ghost", remembered);
+    $("connectHint").textContent = remembered
+      ? "Allow edit access to " + fileHandle.name + " to keep saving your entries there. If the browser offers “Allow on every visit”, choose it so you aren't asked again."
+      : "Entries are saved to a CSV file on this device. Select the file to use.";
+    connectDialog.showModal();
+  }
+
+  function openFile() {
+    window.showOpenFilePicker({ multiple: false, types: CSV_TYPES })
       .then(function (res) {
-        fileHandle = res[0]; mode = "file"; fileReady = true; ls(K_MODE, "file"); idbPut("csvHandle", fileHandle);
-        $("btnReconnect").classList.add("hide");
-        return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
-          var n = importCSV(t, true, true);
-          setStatus("Using <b>" + esc(fileHandle.name) + "</b> on this device — " + n + " rows", "ok");
-          toast("Loaded " + n + " rows");
+        var h = res[0];
+        // The open picker only grants read access; ask for edit access now so the first save doesn't prompt again.
+        return h.requestPermission({ mode: "readwrite" }).then(function (p) {
+          if (p !== "granted") { toast("Edit permission not given. Select the file again and choose Edit."); return; }
+          fileHandle = h; mode = "file"; fileReady = true; ls(K_MODE, "file"); idbPut("csvHandle", h);
+          $("btnReconnect").classList.add("hide");
+          closeConnect();
+          return h.getFile().then(function (f) { return f.text(); }).then(function (t) {
+            var n = importCSV(t, true, true);
+            setStatus("Using <b>" + esc(h.name) + "</b> on this device — " + n + " rows", "ok");
+            toast("Loaded " + n + " rows");
+          });
         });
       }).catch(function (e) { if (e && e.name === "AbortError") return; toast("Couldn't open that file."); });
-  });
+  }
 
-  $("btnNewFile").addEventListener("click", function () {
-    window.showSaveFilePicker({ suggestedName: "expenses.csv", types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }] })
+  function newFile() {
+    window.showSaveFilePicker({ suggestedName: "expenses.csv", types: CSV_TYPES })
       .then(function (h) {
         fileHandle = h; mode = "file"; fileReady = true; ls(K_MODE, "file"); idbPut("csvHandle", h);
+        $("btnReconnect").classList.add("hide");
+        closeConnect();
         writeFile(buildCSV(sortedAll())); toast("Now saving to " + h.name);
       }).catch(function (e) { if (e && e.name === "AbortError") return; toast("Couldn't create that file."); });
-  });
+  }
 
-  $("btnReconnect").addEventListener("click", function () {
+  function reconnectFile() {
     if (!fileHandle) return;
     fileHandle.requestPermission({ mode: "readwrite" }).then(function (p) {
       if (p !== "granted") { toast("Permission not given."); return; }
       fileReady = true;
       $("btnReconnect").classList.add("hide");
+      closeConnect();
       return fileHandle.getFile().then(function (f) { return f.text(); }).then(function (t) {
         importCSV(t, true, true); persist();
       });
     }).catch(function () { toast("Couldn't reconnect the file."); });
-  });
+  }
 
-  $("csvFile").addEventListener("change", function (ev) {
-    var file = ev.target.files && ev.target.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () { importCSV(String(reader.result), true); persist(); };
-    reader.onerror = function () { toast("Couldn't read that file."); };
-    reader.readAsText(file); ev.target.value = "";
-  });
-
-  $("btnExport").addEventListener("click", downloadCSV);
+  $("btnOpenFile").addEventListener("click", openFile);
+  $("btnNewFile").addEventListener("click", newFile);
+  $("btnReconnect").addEventListener("click", reconnectFile);
+  $("btnConnectOpen").addEventListener("click", openFile);
+  $("btnConnectNew").addEventListener("click", newFile);
+  $("btnConnectReconnect").addEventListener("click", reconnectFile);
+  $("btnConnectClose").addEventListener("click", closeConnect);
 
   /* =========================================================
      Start
@@ -1621,7 +1622,7 @@
 
   if (savedMode === "file" && FSA) {
     idbGet("csvHandle").then(function (h) {
-      if (!h) { setStatus(noFileMsg, "warn"); return; }
+      if (!h) { setStatus(noFileMsg, "warn"); openConnect(); return; }
       fileHandle = h;
       return h.queryPermission({ mode: "readwrite" }).then(function (p) {
         mode = "file";
@@ -1633,10 +1634,12 @@
           });
         }
         needsReconnect();
+        openConnect();
       });
-    }).catch(function () { setStatus(noFileMsg, "warn"); });
+    }).catch(function () { setStatus(noFileMsg, "warn"); openConnect(); });
   } else {
     setStatus(noFileMsg, "warn");
+    openConnect();
   }
 })();
 </script>
