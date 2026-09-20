@@ -212,8 +212,11 @@
   .pager button:disabled{opacity:.4;cursor:default}
   .pager .pager-info{font-size:.8125rem;color:var(--muted)}
 
-  .apphead{background:var(--header-bg);border-radius:var(--radius);padding:14px;text-align:center}
-  .apphead h1{margin:0;font-size:1.0625rem;font-weight:700;color:var(--header-text)}
+  .apphead{background:var(--header-bg);border-radius:var(--radius);padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px}
+  .apphead h1{flex:1;min-width:0;margin:0;font-size:1.0625rem;font-weight:700;color:var(--header-text)}
+  .menu-btn{flex:0 0 40px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:0;border-radius:10px;
+    background:rgba(255,255,255,.16);color:var(--header-text);cursor:pointer}
+  .menu-btn:active,.menu-btn[aria-expanded="true"]{background:rgba(255,255,255,.32)}
 </style>
 </head>
 <body data-type="Expenses">
@@ -221,7 +224,25 @@
 
   <main>
 
-  <header class="apphead"><h1>Mani Bhavani Expense Tracker</h1></header>
+  <header class="apphead">
+    <h1>Mani Bhavani Expense Tracker</h1>
+    <button type="button" class="menu-btn" id="btnMenu" aria-expanded="false" aria-controls="menuPanel" aria-label="Menu">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+    </button>
+  </header>
+
+  <section class="card hide" id="menuPanel">
+    <h2>Where this is saved</h2>
+    <p class="status" id="status" data-tone="idle"><span class="dot"></span><span id="statusText">Starting up</span></p>
+
+    <div id="fsaControls" class="hide">
+      <div class="file-row">
+        <button class="btn" id="btnOpenFile">Select file from device</button>
+        <button class="btn btn-ghost" id="btnNewFile">New file on this device</button>
+      </div>
+      <button class="linkout hide" id="btnReconnect">Reconnect that file</button>
+    </div>
+  </section>
 
   <div id="page1" class="page">
 
@@ -271,19 +292,6 @@
 
       <p class="err" id="formError"></p>
       <button class="btn" id="btnAdd">Add entry</button>
-    </section>
-
-    <section class="card">
-      <h2>Where this is saved</h2>
-      <p class="status" id="status" data-tone="idle"><span class="dot"></span><span id="statusText">Starting up</span></p>
-
-      <div id="fsaControls" class="hide">
-        <div class="file-row">
-          <button class="btn" id="btnOpenFile">Select file from device</button>
-          <button class="btn btn-ghost" id="btnNewFile">New file on this device</button>
-        </div>
-        <button class="linkout hide" id="btnReconnect">Reconnect that file</button>
-      </div>
     </section>
 
   </div>
@@ -1344,7 +1352,7 @@
     if (errEl !== false) { var err = errEl || $("formError"); err.textContent = msg; err.classList.add("show"); }
     toast(msg);
     if (fileHandle) $("btnReconnect").classList.remove("hide");
-    if (!errEl) $("status").scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!errEl) { setMenu(true); $("status").scrollIntoView({ behavior: "smooth", block: "center" }); }
     return false;
   }
 
@@ -1545,6 +1553,11 @@
   var CSV_TYPES = [{ description: "CSV file", accept: { "text/csv": [".csv"] } }];
 
   function closeConnect() { if (connectDialog.open) connectDialog.close(); }
+
+  /* --- header menu: holds the file controls so the main page shows only the entry form --- */
+  var menuPanel = $("menuPanel"), btnMenu = $("btnMenu");
+  function setMenu(open) { menuPanel.classList.toggle("hide", !open); btnMenu.setAttribute("aria-expanded", String(open)); }
+  btnMenu.addEventListener("click", function () { setMenu(menuPanel.classList.contains("hide")); });
 
   // Pickers and permission prompts only work from a click, so the popup shows on load and one tap opens the native prompt.
   function openConnect() {
