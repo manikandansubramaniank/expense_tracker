@@ -359,9 +359,9 @@
     </section>
 
     <section class="card">
-      <h2>Expenses by Category</h2>
+      <h2>Expenses &amp; Investment by Category</h2>
       <div class="chart-wrap">
-        <svg id="categoryChart" viewBox="0 0 120 120" width="140" height="140" role="img" aria-label="Expenses by category"></svg>
+        <svg id="categoryChart" viewBox="0 0 120 120" width="140" height="140" role="img" aria-label="Expenses and investment by category"></svg>
         <div class="chart-legend" id="categoryLegend"></div>
       </div>
     </section>
@@ -956,7 +956,8 @@
   ];
   var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
   var BAR_SERIES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expenses" }];
-  var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#6C4FD6", "#0E8FA3", "#C2622D", "#5B6470"];
+  var CHART_COLORS = ["#1D5FD6", "#1E7A5A", "#AB3E56", "#8A6410", "#0E8FA3", "#C2622D", "#5B6470", "#B0468C"];
+  var INVESTMENT_COLOR = "#6C4FD6";
 
 
   function FilterPanel(suffix) {
@@ -1029,23 +1030,26 @@
       if (!svg || !legend) return;
 
       var totals = {};
-      list.forEach(function (e) { if (e.type === "Expenses") totals[e.category] = (totals[e.category] || 0) + e.amount; });
+      list.forEach(function (e) {
+        if (e.type === "Expenses") totals[e.category] = (totals[e.category] || 0) + e.amount;
+        else if (e.type === "Investment") totals.Investment = (totals.Investment || 0) + e.amount;
+      });
       var cats = Object.keys(totals).sort(function (a, b) { return totals[b] - totals[a]; });
       var total = cats.reduce(function (s, c) { return s + totals[c]; }, 0);
 
       svg.innerHTML = ""; legend.innerHTML = "";
 
       if (!total) {
-        var empty = document.createElement("p"); empty.className = "chart-empty"; empty.textContent = "No expenses to chart";
+        var empty = document.createElement("p"); empty.className = "chart-empty"; empty.textContent = "No expenses or investments to chart";
         legend.appendChild(empty);
         return;
       }
 
       var ns = "http://www.w3.org/2000/svg";
-      var r = 50, cx = 60, cy = 60, circumference = 2 * Math.PI * r, offset = 0;
-      cats.forEach(function (c, i) {
+      var r = 50, cx = 60, cy = 60, circumference = 2 * Math.PI * r, offset = 0, ci = 0;
+      cats.forEach(function (c) {
         var frac = totals[c] / total;
-        var color = CHART_COLORS[i % CHART_COLORS.length];
+        var color = c === "Investment" ? INVESTMENT_COLOR : CHART_COLORS[ci++ % CHART_COLORS.length];
 
         var circle = document.createElementNS(ns, "circle");
         circle.setAttribute("cx", cx); circle.setAttribute("cy", cy); circle.setAttribute("r", r);
