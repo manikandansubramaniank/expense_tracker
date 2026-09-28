@@ -78,8 +78,6 @@
   .msel-opt .msel-amts{flex:0 0 auto;margin-left:auto;padding-left:6px;display:flex;gap:6px;transition:margin-right .12s ease}
   .msel-opt .msel-amt{text-align:right;font-size:.6875rem;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
   .msel-opt .msel-amt.is-out{color:var(--out)}
-  .msel-opt .msel-amt.is-in{color:var(--in)}
-  .msel-opt .msel-amt.is-inv{color:var(--inv)}
   .msel-opt .msel-amt.is-zero{color:var(--muted)}
   .msel-opt:active{background:#EEF1EC}
   /* "Only" narrows the filter to this one value; it keeps out of the way until the row is hovered */
@@ -1091,7 +1089,7 @@
   ];
   var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
   var BAR_SERIES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expenses" }];
-  var AMOUNT_TYPES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expense" }];
+  var AMOUNT_TYPES = [{ type: "Expenses", cls: "out", label: "Expense" }];   // filter options show spend only
   var CHART_COLORS = ["#1D5FD6", "#AB3E56", "#8A6410", "#0E8FA3", "#C2622D", "#5B6470", "#B0468C"];
   var INVESTMENT_COLOR = "#6C4FD6";
   var CASH_COLOR = "#1E7A5A";
