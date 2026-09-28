@@ -681,8 +681,21 @@
   }
 
   /* ---------- CSV ---------- */
+  // Excel's delimiter: "sep=;" first line if present, else whichever of , ; tab is most common in the first line
+  function csvDelimiter(text) {
+    var m = text.match(/^sep=(.)\r?\n/i);
+    if (m) return m[1];
+    var line = text.split(/\r\n|\n|\r/)[0].replace(/"[^"]*"/g, "");
+    var best = ",", most = 0;
+    [",", ";", "\t"].forEach(function (d) { var n = line.split(d).length - 1; if (n > most) { most = n; best = d; } });
+    return best;
+  }
+  // Excel rules: a quote opens a quoted field only at the start of the field ("" inside is a literal quote);
+  // a quote anywhere else is plain text. Line breaks may be \r\n, \n or \r.
   function parseCSV(text) {
     text = text.replace(/^\uFEFF/, "");
+    var delim = csvDelimiter(text);
+    text = text.replace(/^sep=.\r?\n/i, "");
     var rows = [], row = [], field = "", inQ = false, i = 0;
     while (i < text.length) {
       var c = text[i];
@@ -690,27 +703,63 @@
         if (c === '"') { if (text[i + 1] === '"') { field += '"'; i += 2; continue; } inQ = false; i++; continue; }
         field += c; i++; continue;
       }
-      if (c === '"') { inQ = true; i++; continue; }
-      if (c === ",") { row.push(field); field = ""; i++; continue; }
-      if (c === "\r") { i++; continue; }
-      if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; i++; continue; }
+      if (c === '"' && field.trim() === "") { field = ""; inQ = true; i++; continue; }
+      if (c === delim) { row.push(field); field = ""; i++; continue; }
+      if (c === "\r" || c === "\n") {
+        row.push(field); rows.push(row); row = []; field = "";
+        i += (c === "\r" && text[i + 1] === "\n") ? 2 : 1; continue;
+      }
       field += c; i++;
     }
     row.push(field); rows.push(row);
     return rows.filter(function (r) { return r.some(function (v) { return v.trim() !== ""; }); });
   }
-  function csvCell(v) { v = v == null ? "" : String(v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  // every field is quoted, like Excel's "CSV with quotes" output
+  function csvCell(v) { v = v == null ? "" : String(v); return '"' + v.replace(/"/g, '""') + '"'; }
   function buildCSV(list) {
-    var out = ["date,category,description,type,amount"];
+    var out = [["date", "category", "description", "type", "amount"].map(csvCell).join(",")];
     list.forEach(function (e) { out.push([e.date, e.category, e.description, e.type, e.amount.toFixed(2)].map(csvCell).join(",")); });
-    return out.join("\r\n") + "\r\n";
+    // the BOM tells Excel the file is UTF-8, so descriptions with non-English text open correctly
+    return "\uFEFF" + out.join("\r\n") + "\r\n";
   }
+
+  var MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  function monthNum(name) { var i = MONTHS.indexOf(String(name).slice(0, 3).toLowerCase()); return i < 0 ? 0 : i + 1; }
+  function fullYear(y) { y = +y; return y < 100 ? (y < 70 ? 2000 + y : 1900 + y) : y; }
+  function isoIfValid(y, m, d) {
+    y = fullYear(y); m = +m; d = +d;
+    var t = new Date(y, m - 1, d);
+    if (!m || !d || t.getFullYear() !== y || t.getMonth() !== m - 1 || t.getDate() !== d) return null;
+    return y + "-" + pad(m) + "-" + pad(d);
+  }
+  // Accepts the date shapes Excel and people write, returning "yyyy-mm-dd" or null:
+  //   2026-09-28, 2026/9/28, 2026.09.28, 2026-09-28T10:00, 20260928
+  //   28-09-2026, 28/9/26, 28.09.2026 (day first; month first only when the day can't be the first number, e.g. 9/28/2026)
+  //   28-Sep-2026, 28 Sep 26, 28 September 2026, Sep 28, 2026, September 28 2026, 2026-Sep-28, Mon 28 Sep 2026
+  //   46293 (Excel date serial number)
+  // Any trailing time ("28/09/2026 14:30", "\u2026T00:00:00Z", "\u2026 2:30 PM") is ignored.
   function normDate(v) {
-    v = (v || "").trim();
-    var m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (m) return m[1] + "-" + pad(m[2]) + "-" + pad(m[3]);
-    m = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m) return m[3] + "-" + pad(m[2]) + "-" + pad(m[1]);
+    v = String(v == null ? "" : v).trim().replace(/^'+/, "");
+    if (!v) return null;
+    var m;
+    // Excel serial day number (1954..2119), days since 1899-12-30
+    if ((m = v.match(/^(\d{5})(\.\d+)?$/)) && +m[1] >= 20000 && +m[1] <= 80000) {
+      var t = new Date(Date.UTC(1899, 11, 30) + (+m[1]) * 86400000);
+      return isoIfValid(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+    }
+    if ((m = v.match(/^(\d{4})(\d{2})(\d{2})$/))) return isoIfValid(m[1], m[2], m[3]);
+    v = v.replace(/^[a-z]+,?\s+(?=\d|[a-z]{3})/i, function (w) { return monthNum(w) ? w : ""; }); // drop weekday
+    v = v.replace(/[T\s]+\d{1,2}:\d{2}.*$/i, "").trim();                                          // drop time
+    // numeric: y-m-d
+    if ((m = v.match(/^(\d{4})[\/\-. ](\d{1,2})[\/\-. ](\d{1,2})$/))) return isoIfValid(m[1], m[2], m[3]);
+    // numeric: d-m-y, or m-d-y when the first number can't be a day-of-month pair
+    if ((m = v.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/))) {
+      return isoIfValid(m[3], m[2], m[1]) || isoIfValid(m[3], m[1], m[2]);
+    }
+    // month names
+    if ((m = v.match(/^(\d{1,2})(?:st|nd|rd|th)?[\/\-. ,]+([a-z]+)\.?[\/\-. ,]+(\d{2}|\d{4})$/i)) && monthNum(m[2])) return isoIfValid(m[3], monthNum(m[2]), m[1]);
+    if ((m = v.match(/^([a-z]+)\.?[\/\-. ]+(\d{1,2})(?:st|nd|rd|th)?[\/\-. ,]+(\d{2}|\d{4})$/i)) && monthNum(m[1])) return isoIfValid(m[3], monthNum(m[1]), m[2]);
+    if ((m = v.match(/^(\d{4})[\/\-. ]+([a-z]+)\.?[\/\-. ]+(\d{1,2})$/i)) && monthNum(m[2])) return isoIfValid(m[1], monthNum(m[2]), m[3]);
     return null;
   }
   function normType(v) {
@@ -724,7 +773,13 @@
     for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].toLowerCase() === v.toLowerCase()) return CATEGORIES[i];
     return v || "Household";
   }
-  function normAmount(v) { var n = parseFloat(String(v).replace(/[^0-9.\-]/g, "")); return isNaN(n) ? null : Math.abs(n); }
+  // "₹12,34,567.50", "1,234", "(250.00)", "Rs. 99" and decimal-comma "1.234,50" / "12,5" all work
+  function normAmount(v) {
+    var s = String(v == null ? "" : v).replace(/^[^0-9]*?(?=-?\d)/, "").replace(/[^0-9.,\-]/g, "");
+    if (/,\d{1,2}$/.test(s) && (s.indexOf(".") < 0 || s.lastIndexOf(",") > s.lastIndexOf("."))) s = s.replace(/\./g, "").replace(",", ".");
+    var n = parseFloat(s.replace(/,/g, ""));
+    return isNaN(n) ? null : Math.abs(n);
+  }
 
   function importCSV(text, replace, quiet) {
     var rows = parseCSV(text);
