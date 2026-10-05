@@ -41,6 +41,12 @@
   .seg button.is-out[aria-pressed="true"]{color:var(--out)}
   .seg button.is-inv[aria-pressed="true"]{color:var(--inv)}
 
+  /* "Show as Amount / Percentage" switch at the top of the Summary, Month Comparison and Details pages */
+  .viewbar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-bottom:10px;font-size:.8125rem;color:var(--muted)}
+  .viewbar .seg{margin:0;padding:3px;gap:4px;background:#E4E9E3}
+  .viewbar .seg button{flex:0 0 auto;min-height:32px;padding:0 14px;font-size:.8125rem}
+  .pct-note{margin:-6px 0 10px;font-size:.75rem;color:var(--muted)}
+
   .field{margin-bottom:12px}
   .field label{display:block;font-size:.8125rem;color:var(--muted);margin-bottom:5px}
   input,select{width:100%;min-height:var(--tap);font:inherit;font-size:16px;color:var(--text);
@@ -310,6 +316,14 @@
 
   <div id="page2" class="page hide">
 
+    <div class="viewbar" role="group" aria-label="Show values as">
+      <span>Show as</span>
+      <div class="seg">
+        <button type="button" id="btnShowAmt" aria-pressed="true">Amount</button>
+        <button type="button" id="btnShowPct" aria-pressed="false">Percentage</button>
+      </div>
+    </div>
+
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters" hidden>Clear all filters</button></div>
 
@@ -364,6 +378,7 @@
 
     <section class="card">
       <h2>Summary</h2>
+      <p class="pct-note hide" id="pctNote">Shown as a share of total income</p>
       <div class="summary-row"><span>Total Income</span><b class="num v-in" id="sumIncome">₹0.00</b></div>
       <div class="summary-row"><span>Total Investment</span><b class="num v-inv" id="sumInvestment">₹0.00</b></div>
       <div class="summary-row"><span>Total Expenses</span><b class="num v-out" id="sumExpenses">₹0.00</b></div>
@@ -381,6 +396,14 @@
   </div>
 
   <div id="page3" class="page hide">
+
+    <div class="viewbar" role="group" aria-label="Show values as">
+      <span>Show as</span>
+      <div class="seg">
+        <button type="button" id="btnShowAmt3" aria-pressed="true">Amount</button>
+        <button type="button" id="btnShowPct3" aria-pressed="false">Percentage</button>
+      </div>
+    </div>
 
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters3" hidden>Clear all filters</button></div>
@@ -436,12 +459,21 @@
 
     <section class="card">
       <h2>By Month</h2>
+      <p class="pct-note hide" id="pctNote3">Each month's share of the total for that type</p>
       <div id="monthBarChart3" class="barchart"></div>
     </section>
 
   </div>
 
   <div id="page4" class="page hide">
+
+    <div class="viewbar" role="group" aria-label="Show values as">
+      <span>Show as</span>
+      <div class="seg">
+        <button type="button" id="btnShowAmt4" aria-pressed="true">Amount</button>
+        <button type="button" id="btnShowPct4" aria-pressed="false">Percentage</button>
+      </div>
+    </div>
 
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters4" hidden>Clear all filters</button></div>
@@ -497,11 +529,12 @@
 
     <section class="card">
       <h2>Details</h2>
+      <p class="pct-note hide" id="pctNote4">Each entry's share of the filtered total for its type</p>
       <div class="selbar hide" id="detailsSelBar4"></div>
       <div class="table-wrap">
         <table class="details-table" id="detailsTable4">
           <thead>
-            <tr><th class="col-sel"><input type="checkbox" id="detailsSelAll4" aria-label="Select all entries on this page"></th><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th class="col-amt">Amount</th><th class="col-act"><span class="sr-only">Actions</span></th></tr>
+            <tr><th class="col-sel"><input type="checkbox" id="detailsSelAll4" aria-label="Select all entries on this page"></th><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th class="col-amt" id="detailsAmtHead4">Amount</th><th class="col-act"><span class="sr-only">Actions</span></th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -650,6 +683,11 @@
   /* ---------- small helpers ---------- */
   function money(n) {
     return "₹" + Math.abs(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  // part as a share of whole, "12.5%"; "—" when there is nothing to divide by
+  function percent(part, whole) {
+    if (!whole) return "—";
+    return (part / whole * 100).toLocaleString("en-IN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%";
   }
   // 1234567.5 -> "12,34,567.5": last three digits, then pairs (Indian grouping)
   function groupIndian(digits) {
@@ -1003,12 +1041,12 @@
           AMOUNT_TYPES.forEach(function (t) {
             if (!o.amounts[t.type]) return;
             var amt = document.createElement("span"); amt.className = "msel-amt is-" + t.cls;
-            amt.textContent = money(o.amounts[t.type]); amt.title = t.label;
+            amt.textContent = o.shown[t.type]; amt.title = t.label;
             amts.appendChild(amt);
           });
           if (!amts.childNodes.length) {
             var zero = document.createElement("span"); zero.className = "msel-amt is-zero";
-            zero.textContent = money(0); amts.appendChild(zero);
+            zero.textContent = o.shown.zero; amts.appendChild(zero);
           }
           lab.appendChild(amts);
         }
@@ -1103,6 +1141,7 @@
     var msCategory = MultiSelect("fCategory" + suffix, "All categories");
     var msDescription = MultiSelect("fDescription" + suffix, "All descriptions");
     var msType = MultiSelect("fType" + suffix, "All types");
+    var asPct = false;        // "Show as": amounts by default, percentages when switched
 
     /* Each dropdown lists only the values that occur in the entries matching the OTHER
        active filters (plus anything already ticked), with amounts summed over that subset.
@@ -1116,10 +1155,16 @@
         if (!sums[k]) sums[k] = { Income: 0, Investment: 0, Expenses: 0 };
         if (sums[k].hasOwnProperty(e.type)) sums[k][e.type] += e.amount;
       });
+      // percentage mode: each value's share of that type's total across the whole pool
+      var totals = { Income: 0, Investment: 0, Expenses: 0 };
+      pool.forEach(function (e) { if (totals.hasOwnProperty(e.type)) totals[e.type] += e.amount; });
       var list = [];
       candidates.forEach(function (o) {
         if (sums[o.value] || sel.indexOf(o.value) !== -1) {
-          list.push({ value: o.value, label: o.label, amounts: sums[o.value] || { Income: 0, Investment: 0, Expenses: 0 } });
+          var amounts = sums[o.value] || { Income: 0, Investment: 0, Expenses: 0 };
+          var shown = { zero: asPct ? "0%" : money(0) };
+          Object.keys(amounts).forEach(function (t) { shown[t] = asPct ? percent(amounts[t], totals[t]) : money(amounts[t]); });
+          list.push({ value: o.value, label: o.label, amounts: amounts, shown: shown });
         }
       });
       list.sort(function (a, b) { return b.amounts.Expenses - a.amounts.Expenses; });
@@ -1196,7 +1241,7 @@
         var sw = document.createElement("span"); sw.className = "sw"; sw.style.background = s.color;
         var lbl = document.createElement("span"); lbl.className = "lbl"; lbl.textContent = s.label;
         var val = document.createElement("span"); val.className = "val";
-        val.textContent = (s.value < 0 ? "-" : "") + money(s.value) + " (" + Math.round(frac * 100) + "%)";
+        val.textContent = asPct ? percent(s.value, total) : (s.value < 0 ? "-" : "") + money(s.value);
         row.appendChild(sw); row.appendChild(lbl); row.appendChild(val);
         legend.appendChild(row);
       });
@@ -1243,9 +1288,10 @@
         return;
       }
 
-      var max = 0;
+      // seriesTotal: each type summed over every month, for the percentage view
+      var max = 0, seriesTotal = { Income: 0, Investment: 0, Expenses: 0 };
       months.forEach(function (mo) {
-        BAR_SERIES.forEach(function (s) { max = Math.max(max, totals[mo][s.type]); });
+        BAR_SERIES.forEach(function (s) { max = Math.max(max, totals[mo][s.type]); seriesTotal[s.type] += totals[mo][s.type]; });
       });
 
       var legend = document.createElement("div"); legend.className = "bc-legend";
@@ -1268,9 +1314,10 @@
           var fill = document.createElement("div"); fill.className = "bc-fill is-" + s.cls;
           fill.style.width = (max ? (amount / max * 100) : 0) + "%";
           if (!amount) fill.style.minWidth = "0";
-          fill.title = s.label + ": " + money(amount);
+          var shown = asPct ? percent(amount, seriesTotal[s.type]) : money(amount);
+          fill.title = s.label + ": " + shown;
           track.appendChild(fill);
-          var val = document.createElement("span"); val.className = "bc-val is-" + s.cls; val.textContent = money(amount);
+          var val = document.createElement("span"); val.className = "bc-val is-" + s.cls; val.textContent = shown;
           row.appendChild(track); row.appendChild(val);
           bars.appendChild(row);
         });
@@ -1281,6 +1328,7 @@
 
     var DETAILS_PAGE_SIZE = 10;
     var detailsRows = [];
+    var detailsTypeTotals = { Income: 0, Investment: 0, Expenses: 0 };   // filtered total per type, for the percentage view
     var detailsPage = 1;
     var selectedIds = {};          // entries ticked for group edit; survives paging, cleared on filter change
 
@@ -1353,7 +1401,9 @@
           [fmtDate(e.date), e.category, e.description || "", e.type].forEach(function (v) {
             var td = document.createElement("td"); td.textContent = v; row.appendChild(td);
           });
-          var amtTd = document.createElement("td"); amtTd.className = "num col-amt " + amtClass; amtTd.textContent = money(e.amount);
+          var amtTd = document.createElement("td"); amtTd.className = "num col-amt " + amtClass;
+          amtTd.textContent = asPct ? percent(e.amount, detailsTypeTotals[e.type]) : money(e.amount);
+          if (asPct) amtTd.title = money(e.amount);
           row.appendChild(amtTd);
           var actTd = document.createElement("td"); actTd.className = "col-act";
           var editBtn = document.createElement("button"); editBtn.type = "button"; editBtn.className = "row-edit"; editBtn.textContent = "Edit";
@@ -1387,6 +1437,8 @@
     function updateDetailsTable(list, keepPage) {
       if (!$("detailsTable" + suffix)) return;
       detailsRows = list.slice().sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+      detailsTypeTotals = { Income: 0, Investment: 0, Expenses: 0 };
+      list.forEach(function (e) { if (detailsTypeTotals.hasOwnProperty(e.type)) detailsTypeTotals[e.type] += e.amount; });
       if (!keepPage) { detailsPage = 1; clearSelection(); } else pruneSelection();
       renderDetailsPage();
     }
@@ -1414,11 +1466,13 @@
       });
       var cash = inc - exp - inv;
       var incEl = $("sumIncome" + suffix), expEl = $("sumExpenses" + suffix), invEl = $("sumInvestment" + suffix), cashEl = $("sumCash" + suffix);
-      if (incEl) incEl.textContent = money(inc);
-      if (expEl) expEl.textContent = money(exp);
-      if (invEl) invEl.textContent = money(inv);
+      // percentage view: everything as a share of total income
+      var show = function (n) { return asPct ? percent(n, inc) : (n < 0 ? "-" : "") + money(n); };
+      if (incEl) incEl.textContent = show(inc);
+      if (expEl) expEl.textContent = show(exp);
+      if (invEl) invEl.textContent = show(inv);
       if (cashEl) {
-        cashEl.textContent = (cash < 0 ? "-" : "") + money(cash);
+        cashEl.textContent = show(cash);
         cashEl.classList.toggle("v-pos", cash >= 0);
         cashEl.classList.toggle("v-neg", cash < 0);
       }
@@ -1440,6 +1494,19 @@
       clearAllBtn.textContent = "Clear all filters" + (n > 1 ? " (" + n + ")" : "");
     }
     function onFilterChange() { refreshOptions(); updateSummary(); updateClearAll(); }
+
+    var showAmtBtn = $("btnShowAmt" + suffix), showPctBtn = $("btnShowPct" + suffix);
+    function setShowAs(pct) {
+      asPct = pct;
+      showAmtBtn.setAttribute("aria-pressed", String(!pct));
+      showPctBtn.setAttribute("aria-pressed", String(pct));
+      var note = $("pctNote" + suffix), head = $("detailsAmtHead" + suffix);
+      if (note) note.classList.toggle("hide", !pct);
+      if (head) head.textContent = pct ? "Share" : "Amount";
+      refreshOptions(); updateSummary(true);
+    }
+    showAmtBtn.addEventListener("click", function () { if (asPct) setShowAs(false); });
+    showPctBtn.addEventListener("click", function () { if (!asPct) setShowAs(true); });
 
     allSelects.forEach(function (ms) { ms.setOnChange(onFilterChange); });
     if (clearAllBtn) {
