@@ -488,6 +488,15 @@
 
   <div id="page4" class="page hide">
 
+    <div class="viewbar" role="group" aria-label="Show entries from" id="quickDate4">
+      <span>Show</span>
+      <div class="seg">
+        <button type="button" data-when="yesterday" aria-pressed="false">Yesterday</button>
+        <button type="button" data-when="" aria-pressed="true">All</button>
+        <button type="button" data-when="today" aria-pressed="false">Today</button>
+      </div>
+    </div>
+
     <div class="viewbar" role="group" aria-label="Show values as">
       <span>Show as</span>
       <div class="seg">
@@ -1166,6 +1175,15 @@
     var msType = MultiSelect("fType" + suffix, "All types");
     var asPct = false;        // "Show as": amounts by default, percentages when switched
     var amtType = AMOUNT_TYPES[0];   // which type's total the filter options show; charts are unaffected
+    var quickDate = "";       // Details page shortcut: "" (all) | "today" | "yesterday"
+
+    // worked out on every use so a page left open past midnight still means the right day
+    function quickDateISO() {
+      if (!quickDate) return null;
+      var d = new Date();
+      if (quickDate === "yesterday") d.setDate(d.getDate() - 1);
+      return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+    }
 
     /* Each dropdown lists only the values that occur in the entries matching the OTHER
        active filters (plus anything already ticked), with amounts summed over that subset.
@@ -1225,7 +1243,9 @@
       var pick = function (ms) { return ms === exclude ? [] : ms.getSelected(); };
       var y = pick(msYear), m = pick(msMonth), d = pick(msDay);
       var c = pick(msCategory), t = pick(msType), desc = pick(msDescription);
+      var onDay = quickDateISO();
       return entries.filter(function (e) {
+        if (onDay && e.date !== onDay) return false;
         var p = e.date.split("-");
         if (y.length && y.indexOf(p[0]) === -1) return false;
         if (m.length && m.indexOf(p[1]) === -1) return false;
@@ -1513,7 +1533,7 @@
     var clearAllBtn = $("btnClearFilters" + suffix);
 
     function activeCount() {
-      return allSelects.reduce(function (n, ms) { return n + (ms.getSelected().length ? 1 : 0); }, 0);
+      return allSelects.reduce(function (n, ms) { return n + (ms.getSelected().length ? 1 : 0); }, quickDate ? 1 : 0);
     }
     function updateClearAll() {
       if (!clearAllBtn) return;
@@ -1536,6 +1556,20 @@
     showAmtBtn.addEventListener("click", function () { if (asPct) setShowAs(false); });
     showPctBtn.addEventListener("click", function () { if (!asPct) setShowAs(true); });
 
+    // "Show Yesterday / All / Today" (Details page): narrows everything else on the page to that one day
+    var quickDateBtns = $("quickDate" + suffix) ? $("quickDate" + suffix).querySelectorAll("button") : [];
+    function setQuickDate(when) {
+      quickDate = when;
+      quickDateBtns.forEach(function (x) { x.setAttribute("aria-pressed", String(x.dataset.when === when)); });
+    }
+    quickDateBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.when === quickDate) return;
+        setQuickDate(b.dataset.when);
+        onFilterChange();
+      });
+    });
+
     // "Values show": only changes the totals listed in the filter dropdowns, never the charts
     var amtTypeBtns = $("filterAmtType" + suffix).querySelectorAll("button");
     amtTypeBtns.forEach(function (b) {
@@ -1550,6 +1584,7 @@
     if (clearAllBtn) {
       clearAllBtn.addEventListener("click", function () {
         allSelects.forEach(function (ms) { ms.clear(); ms.close(); });
+        setQuickDate("");
         onFilterChange();
         toast("Filters cleared");
       });
