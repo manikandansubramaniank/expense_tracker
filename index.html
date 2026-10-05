@@ -84,6 +84,11 @@
   .msel-opt .msel-amts{flex:0 0 auto;margin-left:auto;padding-left:6px;display:flex;gap:6px;transition:margin-right .12s ease}
   .msel-opt .msel-amt{text-align:right;font-size:.6875rem;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
   .msel-opt .msel-amt.is-out{color:var(--out)}
+  .msel-opt .msel-amt.is-inv{color:var(--inv)}
+  .msel-opt .msel-amt.is-in{color:var(--in)}
+  .filter-amt-type{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:.8125rem;color:var(--muted)}
+  .filter-amt-type .seg{flex:1;margin:0;padding:3px;gap:4px}
+  .filter-amt-type .seg button{min-height:32px;font-size:.8125rem}
   .msel-opt .msel-amt.is-zero{color:var(--muted)}
   .msel-opt:active{background:#EEF1EC}
   /* "Only" narrows the filter to this one value; it keeps out of the way until the row is hovered */
@@ -326,6 +331,14 @@
 
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters" hidden>Clear all filters</button></div>
+      <div class="filter-amt-type" id="filterAmtType">
+        <span>Values show</span>
+        <div class="seg" role="group" aria-label="Amount shown in filter values">
+          <button type="button" class="is-out" data-type="Expenses" aria-pressed="true">Expense</button>
+          <button type="button" class="is-inv" data-type="Investment" aria-pressed="false">Investment</button>
+          <button type="button" class="is-in" data-type="Income" aria-pressed="false">Income</button>
+        </div>
+      </div>
 
       <div class="field">
         <label id="fYearLabel">Year</label>
@@ -407,6 +420,14 @@
 
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters3" hidden>Clear all filters</button></div>
+      <div class="filter-amt-type" id="filterAmtType3">
+        <span>Values show</span>
+        <div class="seg" role="group" aria-label="Amount shown in filter values">
+          <button type="button" class="is-out" data-type="Expenses" aria-pressed="true">Expense</button>
+          <button type="button" class="is-inv" data-type="Investment" aria-pressed="false">Investment</button>
+          <button type="button" class="is-in" data-type="Income" aria-pressed="false">Income</button>
+        </div>
+      </div>
 
       <div class="field">
         <label id="fYear3Label">Year</label>
@@ -477,6 +498,14 @@
 
     <section class="card">
       <div class="card-head"><h2>Filters</h2><button type="button" class="btn-clear" id="btnClearFilters4" hidden>Clear all filters</button></div>
+      <div class="filter-amt-type" id="filterAmtType4">
+        <span>Values show</span>
+        <div class="seg" role="group" aria-label="Amount shown in filter values">
+          <button type="button" class="is-out" data-type="Expenses" aria-pressed="true">Expense</button>
+          <button type="button" class="is-inv" data-type="Investment" aria-pressed="false">Investment</button>
+          <button type="button" class="is-in" data-type="Income" aria-pressed="false">Income</button>
+        </div>
+      </div>
 
       <div class="field">
         <label id="fYear4Label">Year</label>
@@ -1035,19 +1064,12 @@
           refreshChecks(); updateLabel(); onChange();
         });
         lab.appendChild(cb); lab.appendChild(span); lab.appendChild(only);
-        if (o.amounts) {
-          // only the types this value actually has, each in its own colour; zeros are left out
+        if (o.shown) {
+          // the amount of the type picked above the filters, in that type's colour (muted when zero)
           var amts = document.createElement("span"); amts.className = "msel-amts";
-          AMOUNT_TYPES.forEach(function (t) {
-            if (!o.amounts[t.type]) return;
-            var amt = document.createElement("span"); amt.className = "msel-amt is-" + t.cls;
-            amt.textContent = o.shown[t.type]; amt.title = t.label;
-            amts.appendChild(amt);
-          });
-          if (!amts.childNodes.length) {
-            var zero = document.createElement("span"); zero.className = "msel-amt is-zero";
-            zero.textContent = o.shown.zero; amts.appendChild(zero);
-          }
+          var amt = document.createElement("span"); amt.className = "msel-amt is-" + o.shown.cls;
+          amt.textContent = o.shown.text; amt.title = o.shown.title;
+          amts.appendChild(amt);
           lab.appendChild(amts);
         }
         listEl.appendChild(lab);
@@ -1127,7 +1149,8 @@
   ];
   var TYPES = [{ value: "Income", label: "Income" }, { value: "Expenses", label: "Expense" }, { value: "Investment", label: "Investment" }];
   var BAR_SERIES = [{ type: "Income", cls: "in", label: "Income" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Expenses", cls: "out", label: "Expenses" }];
-  var AMOUNT_TYPES = [{ type: "Expenses", cls: "out", label: "Expense" }];   // filter options show spend only
+  // what the filter options can show a total of; the first is the default
+  var AMOUNT_TYPES = [{ type: "Expenses", cls: "out", label: "Expense" }, { type: "Investment", cls: "inv", label: "Investment" }, { type: "Income", cls: "in", label: "Income" }];
   var CHART_COLORS = ["#1D5FD6", "#AB3E56", "#8A6410", "#0E8FA3", "#C2622D", "#5B6470", "#B0468C"];
   var INVESTMENT_COLOR = "#6C4FD6";
   var CASH_COLOR = "#1E7A5A";
@@ -1142,11 +1165,13 @@
     var msDescription = MultiSelect("fDescription" + suffix, "All descriptions");
     var msType = MultiSelect("fType" + suffix, "All types");
     var asPct = false;        // "Show as": amounts by default, percentages when switched
+    var amtType = AMOUNT_TYPES[0];   // which type's total the filter options show; charts are unaffected
 
     /* Each dropdown lists only the values that occur in the entries matching the OTHER
        active filters (plus anything already ticked), with amounts summed over that subset.
-       Options are ordered by expense total, biggest spend first; values that tie (including
-       everything with no expenses at all) keep their natural order. */
+       Each option shows the total for one type (Expense by default, switchable above the
+       filters) and options are ordered by that total, biggest first; values that tie
+       (including everything with none of that type) keep their natural order. */
     function buildOptions(ms, candidates, keyFn) {
       var pool = filteredEntries(ms), sel = ms.getSelected();
       var sums = {};
@@ -1162,12 +1187,15 @@
       candidates.forEach(function (o) {
         if (sums[o.value] || sel.indexOf(o.value) !== -1) {
           var amounts = sums[o.value] || { Income: 0, Investment: 0, Expenses: 0 };
-          var shown = { zero: asPct ? "0%" : money(0) };
-          Object.keys(amounts).forEach(function (t) { shown[t] = asPct ? percent(amounts[t], totals[t]) : money(amounts[t]); });
+          var n = amounts[amtType.type];
+          var shown = {
+            text: !n ? (asPct ? "0%" : money(0)) : asPct ? percent(n, totals[amtType.type]) : money(n),
+            cls: n ? amtType.cls : "zero", title: amtType.label
+          };
           list.push({ value: o.value, label: o.label, amounts: amounts, shown: shown });
         }
       });
-      list.sort(function (a, b) { return b.amounts.Expenses - a.amounts.Expenses; });
+      list.sort(function (a, b) { return b.amounts[amtType.type] - a.amounts[amtType.type]; });
       ms.setOptions(list);
     }
 
@@ -1507,6 +1535,16 @@
     }
     showAmtBtn.addEventListener("click", function () { if (asPct) setShowAs(false); });
     showPctBtn.addEventListener("click", function () { if (!asPct) setShowAs(true); });
+
+    // "Values show": only changes the totals listed in the filter dropdowns, never the charts
+    var amtTypeBtns = $("filterAmtType" + suffix).querySelectorAll("button");
+    amtTypeBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        amtType = AMOUNT_TYPES.filter(function (t) { return t.type === b.dataset.type; })[0];
+        amtTypeBtns.forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        refreshOptions();
+      });
+    });
 
     allSelects.forEach(function (ms) { ms.setOnChange(onFilterChange); });
     if (clearAllBtn) {
